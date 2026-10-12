@@ -34,12 +34,12 @@ $taskRun = "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$
 switch ($choice) {
     "2" {
         Write-Host "30分ごとの定期バックアップを登録中..." -ForegroundColor Yellow
-        schtasks.exe /create /tn $TaskName /tr $taskRun /sc minute /mo 30 /f
+        schtasks.exe /create /tn $TaskName /sc MINUTE /mo 30 /tr $taskRun /f
         Write-Host "30分ごとの自動バックアップが正常に登録されました！" -ForegroundColor Green
     }
     "3" {
         Write-Host "毎日23:00の定期バックアップを登録中..." -ForegroundColor Yellow
-        schtasks.exe /create /tn $TaskName /tr $taskRun /sc daily /st 23:00 /f
+        schtasks.exe /create /tn $TaskName /sc DAILY /st 23:00 /tr $taskRun /f
         Write-Host "毎日23:00の自動バックアップが正常に登録されました！" -ForegroundColor Green
     }
     "4" {
@@ -53,7 +53,7 @@ switch ($choice) {
     }
     Default {
         Write-Host "1時間ごとの定期バックアップを登録中..." -ForegroundColor Yellow
-        schtasks.exe /create /tn $TaskName /tr $taskRun /sc minute /mo 60 /f
+        schtasks.exe /create /tn $TaskName /sc HOURLY /mo 1 /tr $taskRun /f
         Write-Host "1時間ごとの自動バックアップが正常に登録されました！" -ForegroundColor Green
     }
 }
