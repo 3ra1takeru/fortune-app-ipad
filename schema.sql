@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS customers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  birthdate TEXT NOT NULL,
+  gender TEXT NOT NULL,
+  notes TEXT,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS records (
+  id TEXT PRIMARY KEY,
+  customerId INTEGER NOT NULL,
+  date DATETIME NOT NULL,
+  content TEXT NOT NULL,
+  summary TEXT,
+  postMessage TEXT,
+  partnerName TEXT,
+  FOREIGN KEY (customerId) REFERENCES customers (id) ON DELETE CASCADE
+);

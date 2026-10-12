@@ -1,4 +1,12 @@
-import Dexie, { Table } from 'dexie';
+export interface AppraisalRecord {
+  id: string;
+  customerId: number;
+  date: Date;
+  content: string;
+  summary?: string;
+  postMessage?: string;
+  partnerName?: string;
+}
 
 export interface Customer {
   id?: number;
@@ -6,19 +14,7 @@ export interface Customer {
   birthdate: string; // YYYY-MM-DD
   gender: string;
   notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  records?: AppraisalRecord[];
+  createdAt: string;
+  updatedAt: string;
 }
-
-export class FortuneAppDB extends Dexie {
-  customers!: Table<Customer>;
-
-  constructor() {
-    super('FortuneAppDB');
-    this.version(1).stores({
-      customers: '++id, name, birthdate, gender'
-    });
-  }
-}
-
-export const db = new FortuneAppDB();
