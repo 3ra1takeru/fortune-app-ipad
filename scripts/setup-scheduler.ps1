@@ -1,5 +1,6 @@
 ﻿# Windows 定期自動バックアップ スケジューラ設定スクリプト
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoDir = Split-Path -Parent $ScriptDir
 $BackupScript = "$ScriptDir\backup.ps1"
