@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Sparkles, Users, ArrowRight, Heart, Briefcase, Home, CalendarHeart, Activity, BookOpen, ActivitySquare, ArrowLeft, ChevronLeft, ChevronRight, Filter, LineChart as LineChartIcon, Table as TableIcon, HeartHandshake, AlertTriangle, Plus, Edit2, Trash2, MessageCircle, Mic, MicOff, StopCircle, Clock, CheckCircle2, ArrowRightLeft, Copy, Wand2, MessageSquare, Key } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea } from 'recharts';
 import { getGeminiAPIKey, setGeminiAPIKey, generateTextWithGemini } from '@/lib/gemini';
+import { NatureDetailView } from '@/components/fortune/NatureDetailView';
 
 export default function FortuneApp() {
   const [activeTab, setActiveTab] = useState('fortune');
@@ -92,7 +93,7 @@ export default function FortuneApp() {
     try {
       const res = await fetch('/api/customers');
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as Customer[];
         setCustomers(data);
       }
     } catch (e) {
@@ -228,7 +229,7 @@ export default function FortuneApp() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: n, birthdate, gender: g, notes: '' })
         });
-        const data = await res.json();
+        const data = (await res.json()) as any;
         await fetchCustomers();
         return data.id as number;
       } else if (existing.id) {
@@ -1093,9 +1094,9 @@ export default function FortuneApp() {
                           <div className="bg-white/70 backdrop-blur-xl border border-white/40 ring-1 ring-zinc-900/5 p-1.5 rounded-2xl flex shadow-sm max-w-lg w-full">
                             {[
                               { id: 'overall', label: '総合' },
-                              { id: 'reisui', label: '令翠学' },
-                              { id: 'fourPillars', label: '四柱推命' },
                               { id: 'nineStar', label: '九星気学' },
+                              { id: 'fourPillars', label: '四柱推命' },
+                              { id: 'reisui', label: '令翠学' },
                             ].map(m => (
                               <button 
                                 key={m.id}
@@ -1108,58 +1109,11 @@ export default function FortuneApp() {
                           </div>
                         </div>
 
-                        {(fortuneMethod === 'overall' || fortuneMethod === 'fourPillars') && (
-                        <Card className="border-0 shadow-sm rounded-3xl overflow-hidden bg-white relative">
-                          <CardHeader className="pb-4"><CardTitle className="text-zinc-400 text-sm font-semibold tracking-widest uppercase flex items-center"><span className="w-8 h-[1px] bg-zinc-200 mr-4"></span>四柱推命<span className="w-8 h-[1px] bg-zinc-200 ml-4"></span></CardTitle></CardHeader>
-                          <CardContent>
-                            {!isCompatibilityMode && (
-                              <div className="flex flex-col sm:flex-row gap-8 items-center mb-8 bg-zinc-50/50 p-6 rounded-2xl border border-zinc-100/50">
-                                <div className="flex justify-around w-full max-w-sm">
-                                  <div className="flex flex-col items-center"><span className="text-xs text-zinc-400 mb-3 tracking-widest">年柱</span><span className="text-4xl text-zinc-800 font-light" style={{ fontFamily: 'var(--font-noto-serif-jp), serif' }}>{result.nature.fourPillars.pillars.year}</span></div>
-                                  <div className="w-[1px] bg-zinc-200"></div>
-                                  <div className="flex flex-col items-center"><span className="text-xs text-zinc-400 mb-3 tracking-widest">月柱</span><span className="text-4xl text-zinc-800 font-light" style={{ fontFamily: 'var(--font-noto-serif-jp), serif' }}>{result.nature.fourPillars.pillars.month}</span></div>
-                                  <div className="w-[1px] bg-zinc-200"></div>
-                                  <div className="flex flex-col items-center"><span className="text-xs text-zinc-400 mb-3 tracking-widest">日柱</span><span className="text-4xl text-zinc-800 font-light" style={{ fontFamily: 'var(--font-noto-serif-jp), serif' }}>{result.nature.fourPillars.pillars.day}</span></div>
-                                </div>
-                              </div>
-                            )}
-                            <div>
-                              <h3 className="text-lg font-medium text-zinc-800 mb-3" style={{ fontFamily: 'var(--font-noto-serif-jp), serif' }}>{isCompatibilityMode ? '二人の関係の本質' : '本質・気質'}</h3>
-                              <p className="text-zinc-600 leading-loose text-[15px]">{result.nature.fourPillars.explanation}</p>
-                            </div>
-                          </CardContent>
-                        </Card>
-                        )}
-                        {(fortuneMethod === 'overall' || fortuneMethod === 'nineStar') && (
-                        <Card className="border-0 shadow-sm rounded-3xl overflow-hidden bg-white">
-                          <CardHeader className="pb-4"><CardTitle className="text-zinc-400 text-sm font-semibold tracking-widest uppercase flex items-center"><span className="w-8 h-[1px] bg-zinc-200 mr-4"></span>九星気学<span className="w-8 h-[1px] bg-zinc-200 ml-4"></span></CardTitle></CardHeader>
-                          <CardContent className="flex flex-col md:flex-row gap-8 items-start">
-                            <div className="flex flex-col items-center justify-center bg-amber-50/50 border border-amber-100/50 p-8 rounded-2xl w-full md:w-auto shrink-0">
-                              <span className="text-xs text-zinc-400 tracking-widest mb-4">{isCompatibilityMode ? '相性星' : '本命星'}</span>
-                              <div className="text-3xl text-amber-700 font-light tracking-widest" style={{ fontFamily: 'var(--font-noto-serif-jp), serif' }}>{result.nature.nineStar.star}</div>
-                            </div>
-                            <div className="flex-1 pt-2">
-                              <h3 className="text-lg font-medium text-zinc-800 mb-3" style={{ fontFamily: 'var(--font-noto-serif-jp), serif' }}>特徴・開運の鍵</h3>
-                              <p className="text-zinc-600 leading-loose text-[15px]">{result.nature.nineStar.explanation}</p>
-                            </div>
-                          </CardContent>
-                        </Card>
-                        )}
-                        {(fortuneMethod === 'overall' || fortuneMethod === 'reisui') && (
-                        <Card className="border-0 shadow-sm rounded-3xl overflow-hidden bg-white">
-                          <CardHeader className="pb-4"><CardTitle className="text-zinc-400 text-sm font-semibold tracking-widest uppercase flex items-center"><span className="w-8 h-[1px] bg-zinc-200 mr-4"></span>令翠学<span className="w-8 h-[1px] bg-zinc-200 ml-4"></span></CardTitle></CardHeader>
-                          <CardContent className="flex flex-col md:flex-row gap-8 items-start">
-                            <div className="flex flex-col items-center justify-center bg-teal-50/50 border border-teal-100/50 p-8 rounded-2xl w-full md:w-auto shrink-0">
-                              <span className="text-xs text-zinc-400 tracking-widest mb-4">{isCompatibilityMode ? '相性運命星' : '運命星'}</span>
-                              <div className="text-3xl text-teal-700 font-light tracking-widest" style={{ fontFamily: 'var(--font-noto-serif-jp), serif' }}>{result.nature.reisui?.star}</div>
-                            </div>
-                            <div className="flex-1 pt-2">
-                              <h3 className="text-lg font-medium text-zinc-800 mb-3" style={{ fontFamily: 'var(--font-noto-serif-jp), serif' }}>特徴・開運の鍵</h3>
-                              <p className="text-zinc-600 leading-loose text-[15px]">{result.nature.reisui?.explanation}</p>
-                            </div>
-                          </CardContent>
-                        </Card>
-                        )}
+                        <NatureDetailView 
+                          result={result} 
+                          method={fortuneMethod} 
+                          isCompatibilityMode={isCompatibilityMode} 
+                        />
                       </TabsContent>
 
                       {/* Tab 2: 運気の説明 (Fortune Explanations) */}

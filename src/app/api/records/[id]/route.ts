@@ -12,8 +12,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     }
     if (!db) throw new Error("DB binding not found");
     const { id } = await params;
-    const body = await request.json();
-    const { content, summary, postMessage, customerId } = body; // If customerId is provided, we might be moving it
+    const body = (await request.json()) as any;
+    const { content, summary, postMessage, customerId } = body;
 
     if (customerId !== undefined) {
       // moving record to another customer

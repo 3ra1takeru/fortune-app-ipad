@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       } catch(e) {}
     }
     if (!db) throw new Error("DB binding not found");
-    const body = await request.json();
+    const body = (await request.json()) as any;
     const { id, customerId, date, content, summary, postMessage, partnerName } = body;
 
     await db.prepare(

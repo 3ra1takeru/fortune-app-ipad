@@ -13,7 +13,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (!db) throw new Error("DB binding not found");
     const { id: idStr } = await params;
     const id = parseInt(idStr, 10);
-    const body = await request.json();
+    const body = (await request.json()) as any;
     const { name, birthdate, gender, notes } = body;
 
     await db.prepare(
