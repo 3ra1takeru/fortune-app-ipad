@@ -10,9 +10,25 @@
 
 | 操作目的 | かんたん実行（ダブルクリック） | コマンド（ターミナル） |
 | :--- | :--- | :--- |
+| **テスト環境にデプロイ** | `【テスト環境にデプロイ】.bat` | `npm run deploy:test` |
+| **本番環境に反映** | `【本番環境に反映】.bat` | `npm run deploy:prod` |
 | **今すぐGitHubにバックアップ** | `【今すぐバックアップ】.bat` | `npm run backup` |
 | **過去の状態に戻る（復元）** | `【過去のバックアップに戻る】.bat` | `npm run restore` |
 | **自動バックアップの変更/解除** | `【自動バックアップ設定】.bat` | `npm run backup:setup` |
+
+---
+
+## 🌐 本番環境とテスト環境の構成
+
+本番の顧客情報（データベース）を誤って上書きしたり破損させないよう、環境とデータベースを完全に分離しています。
+
+| 項目 | 本番環境 (Production) | テスト環境 (Test / Staging) |
+| :--- | :--- | :--- |
+| **公開URL** | [https://ipad-fortune-app.near-future-boy.workers.dev/](https://ipad-fortune-app.near-future-boy.workers.dev/) | [https://ipad-fortune-app-test.near-future-boy.workers.dev/](https://ipad-fortune-app-test.near-future-boy.workers.dev/) |
+| **Worker名** | `ipad-fortune-app` | `ipad-fortune-app-test` |
+| **データベース** | `fortune-app-db`（本番顧客DB） | `fortune-app-db-test`（テスト専用DB） |
+| **データの安全性** | テスト環境でどんな操作・修正を行っても本番DBには一切影響しません。 | 本番の既存顧客データ（3名分）が初期コピーされており、自由に追加・編集・削除の検証が可能です。 |
+| **反映方法** | `【本番環境に反映】.bat` | `【テスト環境にデプロイ】.bat` |
 
 ---
 

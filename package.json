@@ -9,6 +9,8 @@
     "lint": "eslint",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:prod": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy:test": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --config wrangler.test.jsonc",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "backup": "powershell -ExecutionPolicy Bypass -File ./scripts/backup.ps1",

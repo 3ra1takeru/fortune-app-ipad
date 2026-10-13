@@ -29,5 +29,23 @@
   },
   "observability": {
     "enabled": true
+  },
+  "env": {
+    "test": {
+      "name": "ipad-fortune-app-test",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "fortune-app-db-test",
+          "database_id": "4f61db8e-ab46-4bd2-8ffe-8e560c893e8a"
+        }
+      ],
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "ipad-fortune-app-test"
+        }
+      ]
+    }
   }
 }
