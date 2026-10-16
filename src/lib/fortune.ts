@@ -13,6 +13,11 @@ export interface BiorhythmStage {
   description: string;
   isPeak?: boolean;
   isValley?: boolean;
+  season?: string; // "冬", "春", "夏", "秋"
+  seasonLabel?: string; // "冬（忍耐）", "春（努力）", "夏（願望）", "秋（結実）"
+  seasonTheme?: string; // "忍耐", "努力", "願望", "結実"
+  keywords?: string; // "新規スタート・種まき" 等
+  fuyuShitaku?: boolean; // 冬支度
 }
 
 export interface PeriodData {
@@ -134,9 +139,11 @@ export interface FourPillarsNatureDetail {
 // 令翠学の詳細
 // ----------------------------------------------------
 export interface ReisuiNatureDetail {
-  star: string;
-  subStar: string;
-  yinYang: string;
+  star: string; // 十二宿星
+  subStar: string; // 対を成す宿星
+  reiStar: string; // 六令星（水令星、木令星、月令星、火令星、金令星、土令星）
+  oppositeStar: string; // 対照星
+  yinYang: string; // 陽の宿星 / 陰の宿星
   personality: string;
   strengths: string[];
   weaknesses: string[];
@@ -231,7 +238,7 @@ export const NINE_STARS = [
 
 export const TEN_STEMS = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
 export const TWELVE_BRANCHES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
-export const REISUI_STARS = ["水星", "氷星", "木星", "海星", "月星", "魚星", "火星", "冥星", "金星", "小星", "土星", "天星"];
+export const REISUI_STARS = ["水星", "氷令星", "木星", "海令星", "月星", "魚令星", "火星", "冥令星", "金星", "小令星", "土星", "天令星"];
 
 export const BIORHYTHM_CYCLE: BiorhythmStage[] = [
   { name: '種', score: 10, description: '目標を決める時期。新しいことを始めるのに適しています。' },
@@ -272,24 +279,72 @@ function getSolarDateInfo(year: number, month: number, day: number) {
 function getPillar(year: number, month: number, day: number) {
   const { solarYear, solarMonth } = getSolarDateInfo(year, month, day);
 
-  const yIndex = (solarYear - 4) % 10;
-  const bIndex = (solarYear - 4) % 12;
-  const yearPillar = `${TEN_STEMS[(yIndex + 10) % 10]}${TWELVE_BRANCHES[(bIndex + 12) % 12]}`;
+  // 年柱
+  const yIndex = ((solarYear - 4) % 10 + 10) % 10;
+  const bIndex = ((solarYear - 4) % 12 + 12) % 12;
+  const yearPillar = `${TEN_STEMS[yIndex]}${TWELVE_BRANCHES[bIndex]}`;
   
-  // 節月と干支
-  const mStemBase = ((solarYear % 5) * 2 + solarMonth + 1) % 10;
-  const mBranchIndex = (solarMonth + 1) % 12; // 寅月が2月
-  const monthPillar = `${TEN_STEMS[mStemBase]}${TWELVE_BRANCHES[mBranchIndex]}`;
+  // 月柱（五虎遁法）
+  // 寅月(solarMonth=2)の干 = (年干 % 5) * 2 + 2
+  const toraStem = ((yIndex % 5) * 2 + 2) % 10;
+  // solarMonth: 1:丑月, 2:寅月, 3:卯月, 4:辰月...
+  const monthOffset = (solarMonth - 2 + 12) % 12;
+  const mStem = (toraStem + monthOffset) % 10;
+  const mBranch = (solarMonth + 0) % 12; // 1:丑, 2:寅, 3:卯, 4:辰...
+  const monthPillar = `${TEN_STEMS[mStem]}${TWELVE_BRANCHES[mBranch]}`;
 
-  // 日柱（基準日からの通日日数計算）
-  const baseDate = new Date(1900, 0, 1);
-  const targetDate = new Date(year, month - 1, day);
-  const diffDays = Math.round((targetDate.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24));
-  const dIndex = (diffDays + 10) % 10;
-  const dbIndex = (diffDays + 10) % 12;
-  const dayPillar = `${TEN_STEMS[(dIndex + 10) % 10]}${TWELVE_BRANCHES[(dbIndex + 12) % 12]}`;
+  // 日柱（基準日 1900-01-01 は甲戌 = 干:0, 支:10）
+  const baseUTC = Date.UTC(1900, 0, 1);
+  const targetUTC = Date.UTC(year, month - 1, day);
+  const diffDays = Math.round((targetUTC - baseUTC) / 86400000);
+  const dStemIndex = ((diffDays % 10) + 10) % 10;
+  const dBranchIndex = (((diffDays + 10) % 12) + 12) % 12;
+  const dayPillar = `${TEN_STEMS[dStemIndex]}${TWELVE_BRANCHES[dBranchIndex]}`;
 
   return { year: yearPillar, month: monthPillar, day: dayPillar };
+}
+
+// 十二運星の正確な計算
+function getTwelveFate(dayStem: string, dayBranch: string): string {
+  const branchIdx = TWELVE_BRANCHES.indexOf(dayBranch);
+  const FATE_MAP: Record<string, string[]> = {
+    "甲": ["沐浴", "冠帯", "建禄", "帝旺", "衰", "病", "死", "墓", "絶", "胎", "養", "長生"],
+    "乙": ["病", "衰", "帝旺", "建禄", "冠帯", "沐浴", "長生", "養", "胎", "絶", "墓", "死"],
+    "丙": ["胎", "養", "長生", "沐浴", "冠帯", "建禄", "帝旺", "衰", "病", "死", "墓", "絶"],
+    "丁": ["絶", "墓", "死", "病", "衰", "帝旺", "建禄", "冠帯", "沐浴", "長生", "養", "胎"],
+    "戊": ["胎", "養", "長生", "沐浴", "冠帯", "建禄", "帝旺", "衰", "病", "死", "墓", "絶"],
+    "己": ["絶", "墓", "死", "病", "衰", "帝旺", "建禄", "冠帯", "沐浴", "長生", "養", "胎"],
+    "庚": ["死", "墓", "絶", "胎", "養", "長生", "沐浴", "冠帯", "建禄", "帝旺", "衰", "病"],
+    "辛": ["長生", "養", "胎", "絶", "墓", "死", "病", "衰", "帝旺", "建禄", "冠帯", "沐浴"],
+    "壬": ["帝旺", "衰", "病", "死", "墓", "絶", "胎", "養", "長生", "沐浴", "冠帯", "建禄"],
+    "癸": ["建禄", "冠帯", "沐浴", "長生", "養", "胎", "絶", "墓", "死", "病", "衰", "帝旺"]
+  };
+  const list = FATE_MAP[dayStem] || FATE_MAP["甲"];
+  return list[branchIdx >= 0 ? branchIdx : 0];
+}
+
+// 中心星（通変星）の正確な計算（月支元命・本気蔵干基準）
+function getCenterStar(dayStem: string, monthBranch: string): string {
+  const BRANCH_MAIN_STEM: Record<string, string> = {
+    "子": "癸", "丑": "己", "寅": "甲", "卯": "乙",
+    "辰": "戊", "巳": "丙", "午": "丁", "未": "己",
+    "申": "庚", "酉": "辛", "戌": "戊", "亥": "壬"
+  };
+  const targetStem = BRANCH_MAIN_STEM[monthBranch] || "戊";
+  
+  const STEM_RELATIONS: Record<string, Record<string, string>> = {
+    "甲": { "甲":"比肩", "乙":"劫財", "丙":"食神", "丁":"傷官", "戊":"偏財", "己":"正財", "庚":"偏官", "辛":"正官", "壬":"偏印", "癸":"印綬" },
+    "乙": { "乙":"比肩", "甲":"劫財", "丁":"食神", "丙":"傷官", "己":"偏財", "戊":"正財", "辛":"偏官", "庚":"正官", "癸":"偏印", "壬":"印綬" },
+    "丙": { "丙":"比肩", "丁":"劫財", "戊":"食神", "己":"傷官", "庚":"偏財", "辛":"正財", "壬":"偏官", "癸":"正官", "甲":"偏印", "乙":"印綬" },
+    "丁": { "丁":"比肩", "丙":"劫財", "己":"食神", "戊":"傷官", "辛":"偏財", "庚":"正官", "癸":"偏官", "壬":"正官", "乙":"偏印", "甲":"印綬" },
+    "戊": { "戊":"比肩", "己":"劫財", "庚":"食神", "辛":"傷官", "壬":"偏財", "癸":"正財", "甲":"偏官", "乙":"正官", "丙":"偏印", "丁":"印綬" },
+    "己": { "己":"比肩", "戊":"劫財", "辛":"食神", "庚":"傷官", "癸":"偏財", "壬":"正財", "乙":"偏官", "甲":"正官", "丁":"偏印", "丙":"印綬" },
+    "庚": { "庚":"比肩", "辛":"劫財", "壬":"食神", "癸":"傷官", "甲":"偏財", "乙":"正財", "丙":"偏官", "丁":"正官", "戊":"偏印", "己":"印綬" },
+    "辛": { "辛":"比肩", "庚":"劫財", "癸":"食神", "壬":"傷官", "乙":"偏財", "甲":"正財", "丁":"偏官", "丙":"正官", "己":"偏印", "戊":"印綬" },
+    "壬": { "壬":"比肩", "癸":"劫財", "甲":"食神", "乙":"傷官", "丙":"偏財", "丁":"正財", "戊":"偏官", "己":"正官", "庚":"偏印", "辛":"印綬" },
+    "癸": { "癸":"比肩", "壬":"劫財", "乙":"食神", "甲":"傷官", "丁":"偏財", "丙":"正財", "己":"偏官", "戊":"正官", "辛":"偏印", "庚":"印綬" }
+  };
+  return STEM_RELATIONS[dayStem]?.[targetStem] || "正財";
 }
 
 // 本命星計算
@@ -309,69 +364,360 @@ function getGetsumeiStar(honmeiStar: string, month: number, day: number): string
   const { solarMonth } = getSolarDateInfo(2000, month, day); // 節月のみ利用
   
   // 本命星のグループ
-  // グループ1: 一白・四緑・七赤
-  // グループ2: 二黒・五黄・八白
-  // グループ3: 三碧・六白・九紫
+  // 第1グループ: 一白・四緑・七赤（寅月＝八白）
+  // 第2グループ: 三碧・六白・九紫（寅月＝五黄）
+  // 第3グループ: 二黒・五黄・八白（寅月＝二黒）
   const g1 = ["一白水星", "四緑木星", "七赤金星"];
-  const g2 = ["二黒土星", "五黄土星", "八白土星"];
+  const g2 = ["三碧木星", "六白金星", "九紫火星"];
+  const g3 = ["二黒土星", "五黄土星", "八白土星"];
 
   // 節月1(丑)〜12(子)の早見順
-  // 節月2月(寅月)が年の最初
+  // 節月2月(寅月)が年の最初: 寅(0), 卯(1), 辰(2), 巳(3), 午(4), 未(5), 申(6), 酉(7), 戌(8), 亥(9), 子(10), 丑(11)
   const monthOrder = [11, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; // 1月〜12月
   const mIdx = monthOrder[solarMonth - 1];
 
-  let startStarNum = 8; // グループ1の2月は八白(8)
+  let startStarNum = 8; // 第1グループの2月は八白(8)
   if (g2.includes(honmeiStar)) {
-    startStarNum = 5; // グループ2の2月は五黄(5)
-  } else if (!g1.includes(honmeiStar)) {
-    startStarNum = 2; // グループ3の2月は二黒(2)
+    startStarNum = 5; // 第2グループの2月は五黄(5)
+  } else if (g3.includes(honmeiStar)) {
+    startStarNum = 2; // 第3グループの2月は二黒(2)
   }
 
-  // 月命星は逆行（8, 7, 6, 5...）
+  // 月命星は逆行（毎月1つずつ減少）
   let starNum = (startStarNum - mIdx) % 9;
   if (starNum <= 0) starNum += 9;
 
   return NINE_STARS[starNum - 1];
 }
 
-// 日命星計算
+// 日命星計算（日家九星：冬至近傍甲子=1からの陽遁順行・夏至近傍甲子=9からの陰遁逆行）
 function getNichimeiStar(year: number, month: number, day: number): string {
-  const baseDate = new Date(1900, 0, 1);
-  const targetDate = new Date(year, month - 1, day);
-  const diffDays = Math.round((targetDate.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // 日家九星（簡易的に60日サイクルを陽遁・陰遁で巡行）
-  // 6月〜12月は陰遁、12月〜6月は陽遁
-  const isSummerToWinter = month >= 6 && month <= 11;
-  let num = isSummerToWinter 
-    ? (9 - (diffDays % 9)) % 9 + 1
-    : (diffDays % 9) + 1;
-  return NINE_STARS[num - 1];
+  // 基準日: 1986-01-20 (甲子) は陽遁の起点（一白水星: 1）
+  const BASE_KOSHI_UTC = Date.UTC(1986, 0, 20);
+  const targetUTC = Date.UTC(year, month - 1, day);
+
+  // 冬至・夏至の概略計算（夏至: およそ6月21日頃, 冬至: およそ12月22日頃）
+  function getSolstice(y: number) {
+    const sDay = Math.floor(22.2028 + 0.2427404 * (y - 1900) - Math.floor((y - 1900) / 4));
+    const wDay = Math.floor(22.6587 + 0.2427404 * (y - 1900) - Math.floor((y - 1900) / 4));
+    return {
+      summer: Date.UTC(y, 5, sDay),
+      winter: Date.UTC(y, 11, wDay)
+    };
+  }
+
+  // 二至に最も近い甲子日を算出（甲子日は60日周期）
+  function getNearestKoshiUTC(solsticeUTC: number) {
+    const sDiff = Math.round((solsticeUTC - BASE_KOSHI_UTC) / 86400000);
+    const sEto = ((0 + sDiff) % 60 + 60) % 60;
+    const offset = sEto <= 30 ? -sEto : (60 - sEto);
+    return solsticeUTC + offset * 86400000;
+  }
+
+  const prevWinter = getNearestKoshiUTC(getSolstice(year - 1).winter);
+  const currSummer = getNearestKoshiUTC(getSolstice(year).summer);
+  const currWinter = getNearestKoshiUTC(getSolstice(year).winter);
+
+  let isYang = true;
+  let startKoshi = prevWinter;
+  if (targetUTC >= currSummer && targetUTC < currWinter) {
+    isYang = false;
+    startKoshi = currSummer;
+  } else if (targetUTC >= currWinter) {
+    isYang = true;
+    startKoshi = currWinter;
+  } else {
+    isYang = true;
+    startKoshi = prevWinter;
+  }
+
+  const diffDays = Math.round((targetUTC - startKoshi) / 86400000);
+
+  if (isYang) {
+    // 陽遁期間: 甲子日を一白(1)として1日1つ順行（+1）
+    let star = ((1 - 1 + (diffDays % 9) + 900) % 9) + 1;
+    return NINE_STARS[star - 1];
+  } else {
+    // 陰遁期間: 甲子日を九紫(9)として1日1つ逆行（-1）
+    let star = ((9 - 1 - (diffDays % 9) + 900) % 9) + 1;
+    return NINE_STARS[star - 1];
+  }
 }
 
-// 傾斜宮計算（本命星中宮盤で月命星が位置する宮）
+// 傾斜宮計算（月命星中宮盤において本命星が位置する宮）
 function getKeishaGyu(honmeiStar: string, getsumeiStar: string): { name: string; meaning: string } {
   const honmeiNum = NINE_STARS.indexOf(honmeiStar) + 1;
   const getsuNum = NINE_STARS.indexOf(getsumeiStar) + 1;
 
-  // 定位盤の宮: 1:坎, 2:坤, 3:震, 4:巽, 5:中宮, 6:乾, 7:兌, 8:艮, 9:離
-  // 本命星が中宮にあるとき、月命星が入るステップ
-  const step = (getsuNum - honmeiNum + 9) % 9;
-  const gyuNum = ((step + 4) % 9) + 1;
+  // 月命星が中宮のとき、本命星が入るステップ
+  const step = (honmeiNum - getsuNum + 9) % 9;
 
+  // step と宮・定位星の対応:
+  // 0: 中宮(五黄)
+  // 1: 乾宮(六白・北西)
+  // 2: 兌宮(七赤・西)
+  // 3: 艮宮(八白・北東)
+  // 4: 離宮(九紫・南)
+  // 5: 坎宮(一白・北)
+  // 6: 坤宮(二黒・南西)
+  // 7: 震宮(三碧・東)
+  // 8: 巽宮(四緑・南東)
   const gyuMap: Record<number, { name: string; meaning: string }> = {
-    1: { name: "坎宮傾斜（北）", meaning: "深い洞察力と探求心、人知れず努力しピンチをチャンスに変える粘り強さ" },
-    2: { name: "坤宮傾斜（南西）", meaning: "大地のような包容力と補佐役としての卓越した手腕、人や事業を育てる母性" },
-    3: { name: "震宮傾斜（東）", meaning: "時代の先を読む直感力と先駆者精神、困難を打破するスピーディーな突破力" },
-    4: { name: "巽宮傾斜（南東）", meaning: "卓越した交渉力と人たらしの魅力、誰とでも円満に信用を築き上げる調和力" },
-    5: { name: "中宮傾斜（中央）", meaning: "生まれながらの支配力と求心力、いざという時に周囲を束ねる帝王の器" },
-    6: { name: "乾宮傾斜（北西）", meaning: "高潔なプライドと揺るぎないリーダーシップ、理想を形にする不屈の実行力" },
-    7: { name: "兌宮傾斜（西）", meaning: "人を喜ばせる天性のユーモアと社交性、会話や表現を通じて人を惹きつける魅力" },
-    8: { name: "艮宮傾斜（北東）", meaning: "現状を大胆に刷新する改革精神と粘り強さ、逆境をバネに山を登りつめる底力" },
-    9: { name: "離宮傾斜（南）", meaning: "鋭敏な美的センスと知性、物事の本質を瞬時に見抜く閃きと華やかな存在感" },
+    0: { name: "五黄土星（中宮傾斜・中央）", meaning: "生まれながらの支配力と求心力、いざという時に周囲を束ねる帝王の器" },
+    1: { name: "六白金星（乾宮傾斜・北西）", meaning: "高潔なプライドと揺るぎないリーダーシップ、理想を形にする不屈の実行力" },
+    2: { name: "七赤金星（兌宮傾斜・西）", meaning: "人を喜ばせる天性のユーモアと社交性、会話や表現を通じて人を惹きつける魅力" },
+    3: { name: "八白土星（艮宮傾斜・北東）", meaning: "現状を大胆に刷新する改革精神と粘り強さ、逆境をバネに山を登りつめる底力" },
+    4: { name: "九紫火星（離宮傾斜・南）", meaning: "鋭敏な美的センスと知性、物事の本質を瞬時に見抜く閃きと華やかな存在感" },
+    5: { name: "一白水星（坎宮傾斜・北）", meaning: "深い洞察力と探求心、人知れず努力しピンチをチャンスに変える粘り強さ" },
+    6: { name: "二黒土星（坤宮傾斜・南西）", meaning: "大地のような包容力と補佐役としての卓越した手腕、人や事業を育てる母性" },
+    7: { name: "三碧木星（震宮傾斜・東）", meaning: "時代の先を読む直感力と先駆者精神、困難を打破するスピーディーな突破力" },
+    8: { name: "四緑木星（巽宮傾斜・南東）", meaning: "卓越した交渉力と人たらしの魅力、誰とでも円満に信用を築き上げる調和力" },
   };
 
-  return gyuMap[gyuNum] || gyuMap[1];
+  return gyuMap[step] || gyuMap[5];
+}
+
+// ----------------------------------------------------
+// 令翠学の宿星（十二宿星・六令星）および運命周期計算
+// ----------------------------------------------------
+// 令翠学の12運命周期（冬・春・夏・秋の四季各3年と十二の時期）
+// 添付画像の「運命周期図」に完全準拠
+export interface ReisuiCycleStage {
+  name: string;
+  season: '冬' | '春' | '夏' | '秋';
+  seasonLabel: string;
+  seasonTheme: string;
+  keywords: string;
+  score: number;
+  title: string;
+  theme: string;
+  description: string;
+  isPeak?: boolean;
+  isValley?: boolean;
+  fuyuShitaku?: boolean;
+}
+
+export const REISUI_12_CYCLES: ReisuiCycleStage[] = [
+  {
+    name: "令",
+    season: "冬",
+    seasonLabel: "冬（忍耐）",
+    seasonTheme: "忍耐",
+    keywords: "無・玄",
+    score: 15,
+    isValley: true,
+    title: "【令期・冬の中心（無・玄）】",
+    theme: "無・玄。運気の胎蔵期であり、精神的インスピレーションが高まる転換点。",
+    description: "無・玄。最も静かな冬の中心。無理な動きは慎み、内面を深く研ぎ澄ませて春を待つ時。"
+  },
+  {
+    name: "精算",
+    season: "冬",
+    seasonLabel: "冬（忍耐）",
+    seasonTheme: "忍耐",
+    keywords: "心の準備",
+    score: 35,
+    title: "【精算期・冬の総決算（心の準備）】",
+    theme: "心の準備。過去の不要なものを手放し、次の春に向けて心身を整える時期。",
+    description: "心の準備。過去の歩みを整理整頓し、身軽になって次の新しい春を迎える準備期間。"
+  },
+  {
+    name: "開拓",
+    season: "春",
+    seasonLabel: "春（努力）",
+    seasonTheme: "努力",
+    keywords: "新規スタート・種まき",
+    score: 55,
+    title: "【開拓期・新しい春の始まり（新規スタート・種まき）】",
+    theme: "新規スタート・種まき！新しい運気サイクルが力強く動き出す挑戦の時期。",
+    description: "新規スタート・種まき。未知の世界へ一歩を踏み出し、未来への種を蒔く好機。"
+  },
+  {
+    name: "生長",
+    season: "春",
+    seasonLabel: "春（努力）",
+    seasonTheme: "努力",
+    keywords: "行動・実行・水まき",
+    score: 72,
+    title: "【生長期・躍進の春（行動・実行・水まき）】",
+    theme: "行動・実行・水まき。新芽が伸び、手間を惜しまず励むことで勢いが加速する時期。",
+    description: "行動・実行・水まき。蒔いた種に水や栄養を与え、積極的に行動して枝葉を広げる時。"
+  },
+  {
+    name: "決定",
+    season: "春",
+    seasonLabel: "春（努力）",
+    seasonTheme: "努力",
+    keywords: "見通し・方針・決断",
+    score: 84,
+    title: "【決定期・春の集大成（見通し・方針・決断）】",
+    theme: "見通し・方針・決断。方向性を明確に定め、覚悟を持って大きな決断を下す時期。",
+    description: "見通し・方針・決断。春の努力が確かな形を成し、進むべき進路を確定させる決定打の年。"
+  },
+  {
+    name: "健康",
+    season: "夏",
+    seasonLabel: "夏（願望）",
+    seasonTheme: "願望",
+    keywords: "精神面・トラブル（要注意）",
+    score: 70,
+    isValley: true,
+    title: "【健康期・夏の小休止（精神面・トラブル 要注意）】",
+    theme: "精神面・トラブル（要注意）。活動の波に乗る中での小休止。心身のケアを最優先にする時期。",
+    description: "精神面・トラブル（要注意）。忙しさの中で無理がたたらないよう、体調と心のバランスを最優先に。"
+  },
+  {
+    name: "人気",
+    season: "夏",
+    seasonLabel: "夏（願望）",
+    seasonTheme: "願望",
+    keywords: "願望達成（努力ある者）",
+    score: 92,
+    isPeak: true,
+    title: "【人気期・夏の絶頂（願望達成・努力ある者）】",
+    theme: "願望達成（努力ある者）。努力してきた人に脚光が当たり、支持と称賛が集まる大吉期。",
+    description: "願望達成（努力ある者）。努力が花開き、華やかな人気と周囲からの応援に包まれる絶頂期。"
+  },
+  {
+    name: "油断",
+    season: "夏",
+    seasonLabel: "夏（願望）",
+    seasonTheme: "願望",
+    keywords: "浮足立つ・落花",
+    score: 78,
+    title: "【油断期・夏の警戒期（浮足立つ・落花）】",
+    theme: "浮足立つ・落花。絶頂の後に生じやすい油断や慢心を戒め、冷静さを保つべき警戒期。",
+    description: "浮足立つ・落花。好調さに甘んじず、足元をしっかり固めて落花を防ぐ用心期。"
+  },
+  {
+    name: "再開",
+    season: "秋",
+    seasonLabel: "秋（結実）",
+    seasonTheme: "結実",
+    keywords: "再生・再会・再構築",
+    score: 86,
+    title: "【再開期・実りの秋の初め（再生・再会・再構築）】",
+    theme: "再生・再会・再構築。過去の挫折や停滞を乗り越え、実りの秋へ向けて再始動する時期。",
+    description: "再生・再会・再構築。一度途切れた縁や計画が復活し、確かな果実へと実を結び始める時。"
+  },
+  {
+    name: "経済",
+    season: "秋",
+    seasonLabel: "秋（結実）",
+    seasonTheme: "結実",
+    keywords: "結果・収穫",
+    score: 94,
+    title: "【経済期・実利の収穫（結果・収穫）】",
+    theme: "結果・収穫。長年の努力が具体的な金運や物質的豊かさとして実る豊かな収穫期。",
+    description: "結果・収穫。経済的な潤いと確かな成果を手中に収める、手応え満点の時期。"
+  },
+  {
+    name: "充実",
+    season: "秋",
+    seasonLabel: "秋（結実）",
+    seasonTheme: "結実",
+    keywords: "完成・成功",
+    score: 100,
+    isPeak: true,
+    fuyuShitaku: true,
+    title: "【充実期・秋の黄金収穫（完成・成功）】",
+    theme: "完成・成功。12年サイクルの最高の集大成！運気が最高潮に達する大満足の時期。",
+    description: "完成・成功。すべての努力が頂点に達し、人生の黄金期を謳歌する最高の達成年。冬支度へ。"
+  },
+  {
+    name: "背信",
+    season: "冬",
+    seasonLabel: "冬（忍耐）",
+    seasonTheme: "忍耐",
+    keywords: "裏目・裏切り",
+    score: 28,
+    isValley: true,
+    fuyuShitaku: true,
+    title: "【背信期・冬の入り口（裏目・裏切り・冬支度）】",
+    theme: "裏目・裏切り（冬支度）。充実期の後に訪れる冬の入口。新規展開は避け、冬支度に徹する時期。",
+    description: "裏目・裏切り。冬支度の時期。予想外の裏目が出やすいため、過信を捨てて身を守る時。"
+  }
+];
+
+function getReisuiStar(year: number, month: number, day: number): {
+  star: string;
+  subStar: string;
+  oppositeStar: string;
+  reiStar: string;
+  yinYang: string;
+  unmeiSu: number;
+  reiBranch: number;
+} {
+  // 日干支番号（1〜60）の計算
+  // 1986-04-25 は 己亥 = 36番
+  const baseUTC = Date.UTC(1986, 3, 25);
+  const targetUTC = Date.UTC(year, month - 1, day);
+  const diffDays = Math.round((targetUTC - baseUTC) / 86400000);
+  const unmeiSu = ((36 - 1 + diffDays) % 60 + 60) % 60 + 1;
+  const isEvenYear = (year % 2 === 0);
+
+  let star = "";
+  let subStar = "";
+  let oppositeStar = "";
+  let reiStar = "";
+  let reiBranch = 0; // 子=0, 丑=1, 寅=2, 卯=3, 辰=4, 巳=5, 午=6, 未=7, 申=8, 酉=9, 戌=10, 亥=11
+
+  if (unmeiSu >= 1 && unmeiSu <= 10) {
+    reiStar = "土令星";
+    reiBranch = 10; // 戌
+    star = isEvenYear ? "土星" : "天令星";
+    subStar = isEvenYear ? "天令星" : "土星";
+    oppositeStar = isEvenYear ? "月星" : "魚令星";
+  } else if (unmeiSu >= 11 && unmeiSu <= 20) {
+    reiStar = "金令星";
+    reiBranch = 8; // 申
+    star = isEvenYear ? "金星" : "小令星";
+    subStar = isEvenYear ? "小令星" : "金星";
+    oppositeStar = isEvenYear ? "木星" : "海令星";
+  } else if (unmeiSu >= 21 && unmeiSu <= 30) {
+    reiStar = "火令星";
+    reiBranch = 6; // 午
+    star = isEvenYear ? "火星" : "冥令星";
+    subStar = isEvenYear ? "冥令星" : "火星";
+    oppositeStar = isEvenYear ? "水星" : "氷令星";
+  } else if (unmeiSu >= 31 && unmeiSu <= 40) {
+    reiStar = "月令星";
+    reiBranch = 4; // 辰
+    star = isEvenYear ? "月星" : "魚令星";
+    subStar = isEvenYear ? "魚令星" : "月星";
+    oppositeStar = isEvenYear ? "土星" : "天令星";
+  } else if (unmeiSu >= 41 && unmeiSu <= 50) {
+    reiStar = "木令星";
+    reiBranch = 2; // 寅
+    star = isEvenYear ? "木星" : "海令星";
+    subStar = isEvenYear ? "海令星" : "木星";
+    oppositeStar = isEvenYear ? "金星" : "小令星";
+  } else {
+    reiStar = "水令星";
+    reiBranch = 0; // 子
+    star = isEvenYear ? "水星" : "氷令星";
+    subStar = isEvenYear ? "氷令星" : "水星";
+    oppositeStar = isEvenYear ? "火星" : "冥令星";
+  }
+
+  const yinYang = isEvenYear ? "陽の宿星" : "陰の宿星";
+
+  return { star, subStar, oppositeStar, reiStar, yinYang, unmeiSu, reiBranch };
+}
+
+// 特定の年における令翠学運命周期の取得
+export function getReisuiYearCycle(reiBranch: number, targetYear: number): ReisuiCycleStage {
+  const yearBranch = ((targetYear - 4) % 12 + 12) % 12;
+  const cycleIndex = (yearBranch - reiBranch + 12) % 12;
+  return REISUI_12_CYCLES[cycleIndex] || REISUI_12_CYCLES[0];
+}
+
+// 特定の月における令翠学運命周期の取得（節月地支基準）
+export function getReisuiMonthCycle(reiBranch: number, targetMonth: number): ReisuiCycleStage {
+  // 節月地支：1月丑(1), 2月寅(2)... 11月亥(11), 12月子(0)
+  const monthBranch = targetMonth === 12 ? 0 : targetMonth;
+  const cycleIndex = (monthBranch - reiBranch + 12) % 12;
+  return REISUI_12_CYCLES[cycleIndex] || REISUI_12_CYCLES[0];
 }
 
 // 年盤における本命星の回座宮計算
@@ -509,9 +855,248 @@ function getYearGyu(honmeiStar: string, centerStarNum: number): {
 }
 
 // ----------------------------------------------------
-// 年代別の人生サイクル（0〜18, 19〜29, 30〜44, 45〜59, 60〜）
+// 占術別・年代別人生サイクル（バイオリズム期間）生成
 // ----------------------------------------------------
-function generateLifeStages(currentAge: number, baseSeed: number, fortuneType: 'nineStar' | 'fourPillars' | 'reisui' | 'overall'): AgePeriodLifeStage[] {
+function formatLifeStage(
+  s: { range: string; title: string; theme: string; pastDesc: string; checkPoint: string },
+  currentAge: number
+): AgePeriodLifeStage {
+  const [minAgeStr, maxAgeStr] = s.range.replace(/才/g, '').replace('以降', '').split('〜');
+  const minAge = parseInt(minAgeStr, 10);
+  const maxAge = maxAgeStr ? parseInt(maxAgeStr, 10) : 120;
+  
+  let timingType: 'past' | 'current' | 'future' = 'past';
+  if (currentAge >= minAge && currentAge <= maxAge) {
+    timingType = 'current';
+  } else if (currentAge < minAge) {
+    timingType = 'future';
+  }
+
+  let dynamicDesc = s.pastDesc;
+  if (timingType === 'current') {
+    dynamicDesc = `【まさに今、あなたはこの人生の重要なステージ（${s.range}）の只中にいます】\n${s.pastDesc}\n現在、あなたは次のステージへ向かうための重要な転換期に立っており、日々の選択の一つひとつが今後の未来を大きく決定づける鍵となっています。`;
+  } else if (timingType === 'future') {
+    dynamicDesc = `【これから迎える未来のステージ（${s.range}）です】\n${s.pastDesc}\n現在の努力や経験がすべてこの時期の大きな収穫へと直結していきます。自信を持って準備を進めてください。`;
+  }
+
+  return {
+    ageRange: s.range,
+    stageTitle: s.title,
+    timingType,
+    lifeTheme: s.theme,
+    description: dynamicDesc,
+    checkPoint: s.checkPoint
+  };
+}
+
+// 1. 四柱推命の大運（立運数に基づく10年周期）
+function generateFourPillarsLifeStages(
+  y: number,
+  m: number,
+  d: number,
+  currentAge: number,
+  gender: string = 'male'
+): AgePeriodLifeStage[] {
+  // 節入り日テーブル（各月節入りの概算日）
+  const cutoffDays = [6, 4, 6, 5, 6, 6, 7, 8, 8, 8, 7, 7];
+  const currCutoff = cutoffDays[m - 1];
+  const nextMonth = m === 12 ? 1 : m + 1;
+  const nextYear = m === 12 ? y + 1 : y;
+  const nextCutoff = cutoffDays[nextMonth - 1];
+
+  const targetDate = new Date(Date.UTC(y, m - 1, d));
+  const nextDate = new Date(Date.UTC(nextYear, nextMonth - 1, nextCutoff));
+  const prevDate = new Date(Date.UTC(y, m - 1, currCutoff));
+
+  // 年干の陰陽（1984=甲(0/陽), 1985=乙(1/陰), 1986=丙(2/陽)...）
+  const yIndex = ((y - 4) % 10 + 10) % 10;
+  const isYangYear = (yIndex % 2 === 0);
+  const isMale = (gender === 'male' || gender === '男性' || gender === '');
+  const isForward = (isMale && isYangYear) || (!isMale && !isYangYear);
+
+  let diffDays = 0;
+  if (isForward) {
+    diffDays = Math.round((nextDate.getTime() - targetDate.getTime()) / 86400000);
+  } else {
+    diffDays = Math.round((targetDate.getTime() - prevDate.getTime()) / 86400000);
+  }
+
+  let startAge = Math.floor(Math.abs(diffDays) / 3);
+  if (startAge < 1) startAge = 1;
+  if (startAge > 10) startAge = 10;
+
+  const stages: { range: string; title: string; theme: string; pastDesc: string; checkPoint: string }[] = [];
+
+  // 立運前（0才〜startAge-1才）
+  if (startAge > 0) {
+    stages.push({
+      range: `0才〜${startAge - 1}才`,
+      title: `【幼少期・胎動の運気】大運に入る前の基礎形成期`,
+      theme: `家族の守護と天賦の気質の目覚め`,
+      pastDesc: `四柱推命における本格的な大運（10年ごとの大きな運命の波）に入る前の準備期間です。家庭環境や両親の運気に強く守られながら、あなた本来の生命力と豊かな感受性の種がじっくりと育まれた大切な時期です。`,
+      checkPoint: `【過去の答え合わせ】幼い頃に培った安心感や家庭での原体験が、その後のあなたの粘り強さと人徳の原点になっています。`
+    });
+  }
+
+  const daitunThemes = [
+    { title: "自我の確立と学びの基礎固め", theme: "素直な吸収力と将来への好奇心", desc: "学問や習い事、友人関係を通じて自分の強みや個性を発見していく10年です。素直さと旺盛な好奇心が大きな成長をもたらします。" },
+    { title: "青春の飛躍と自立への助走", theme: "情熱と挑戦、仲間との出会い", desc: "社会や将来に向けて視野が一気に広がり、時に葛藤しながらも自立心を鍛え上げる時代です。情熱を注げる目標に出会う好機です。" },
+    { title: "社会への進出と試行錯誤の開拓期", theme: "独立独歩、実力で道を切り拓く時代", desc: "社会の荒波に揉まれながらも、自分の足で立ち、理想と現実のバランスを取りながら確かな実力を身につけていく修行の10年です。" },
+    { title: "才能の開花とキャリアの黄金確立期", theme: "専門性の発揮、社会的責任と大きな成果", desc: "これまでの経験とスキルが一つに結実し、仕事でも人生でも主役として大きな成果を上げる黄金期です。周囲からの信頼も絶頂に達します。" },
+    { title: "人生の集大成・統率力と大収穫期", theme: "確固たる地位、リーダーシップと大きな実り", desc: "社会的地位や経済基盤が不動のものとなり、組織や家族の中心人物として大きな影響力を発揮する円熟期です。大願成就の時です。" },
+    { title: "円熟と継承・人徳による大発展期", theme: "後進の育成、豊かな影響力と安定した基盤", desc: "自らの成功を分かち合い、後進の育成や社会貢献に尽くすことで、深い人徳と尊敬を集める豊かな時代を過ごします。" },
+    { title: "精神的自由と智慧の分かち合い期", theme: "名誉とゆとり、心穏やかな黄金時代", desc: "あらゆる責任を果たし終え、自分の純粋な喜びや趣味、智慧の探求に生きる最高の自由期です。心穏やかな幸福に包まれます。" }
+  ];
+
+  for (let i = 0; i < 7; i++) {
+    const fromAge = startAge + i * 10;
+    const toAge = fromAge + 9;
+    const meta = daitunThemes[i] || daitunThemes[0];
+    stages.push({
+      range: `${fromAge}才〜${toAge}才`,
+      title: `【第${i + 1}大運】${meta.title}`,
+      theme: meta.theme,
+      pastDesc: meta.desc,
+      checkPoint: `【大運の節目】この年代の開始前後（${fromAge}才頃）に、人生の方向性を決定づける大きな環境の変化や重要な決断の機会が訪れます。`
+    });
+  }
+
+  // 第8大運以降
+  const finalStartAge = startAge + 70;
+  stages.push({
+    range: `${finalStartAge}才以降`,
+    title: `【第8大運以降】人生の完成と徳の結実期`,
+    theme: `心穏やかな自由、後世へ語り継ぐ人生の智慧`,
+    pastDesc: `あらゆる人生経験が昇華され、心穏やかで豊かな実りに包まれる最高の黄金時代です。あなたの存在そのものが周囲の人々の希望と安心の灯火となります。`,
+    checkPoint: `【大輪の花】生涯を通じて蒔いてきた愛と誠実さの種が、美しい果実となってあなたと家族を温かく満たし続けます。`
+  });
+
+  return stages.map(s => formatLifeStage(s, currentAge));
+}
+
+// 2. 九星気学（9年周期・中宮帰還サイクル）
+function generateNineStarLifeStages(currentAge: number, honmeiStar: string): AgePeriodLifeStage[] {
+  const themes = [
+    {
+      range: "0才〜8才",
+      title: "【第1巡・命の根付き】自己の核と生命力の芽生え",
+      theme: "純粋な感受性と家族との深い絆",
+      pastDesc: "本命星が九宮（坎宮から離宮）を初めて一周する最初の9年間です。大自然の気の巡りを無意識のうちに体感し、あなた特有の気質と生命力の土台が温かい家庭の中でじっくりと育まれた時代です。",
+      checkPoint: "【過去の答え合わせ】幼少期に感じた家族の温もりや原風景が、今のあなたの直感力と感性の根底に息づいています。"
+    },
+    {
+      range: "9才〜17才",
+      title: "【第2巡・躍動の9年】好奇心の爆発と自我の目覚め",
+      theme: "自立心の芽生えと個性的な才能の開花",
+      pastDesc: "学校生活や友人関係の中で、自分ならではの得意分野や価値観が形作られていく思春期の9年間です。外の世界からの刺激を貪欲に吸収し、精神的な自立への第一歩を踏み出しました。",
+      checkPoint: "【過去の答え合わせ】10代半ば（13〜15才頃）に、その後の生き方に大きな影響を与える趣味・特技や親友との出会いがあったはずです。"
+    },
+    {
+      range: "18才〜26才",
+      title: "【第3巡・開拓の9年】社会への挑戦と試行錯誤の助走期",
+      theme: "自立と挑戦、数々の試練を通じた自己発見",
+      pastDesc: "社会へと飛び出し、理想と現実の狭間で葛藤しながらも自立した大人としての足場を固めた9年間です。挫折や方針転換を経験しながらも、自分だけの強みを研ぎ澄ましていきました。",
+      checkPoint: "【過去の答え合わせ】20代前半（21〜23才頃）に、進路の決定や環境の急変など、自立心を試される大きな分岐点を乗り越えています。"
+    },
+    {
+      range: "27才〜35才",
+      title: "【第4巡・確立の9年】実力発揮と社会的信用の獲得",
+      theme: "スキルの研ぎ澄ましと人生の基盤確立",
+      pastDesc: "20代の試行錯誤が確かな成果として実を結び、周囲から一人前のプロフェッショナルとして厚い信頼を寄せられる充実期です。仕事もプライベートも大きく前進し、揺るぎない基盤を確立します。",
+      checkPoint: "【過去・現在の照らし合わせ】30才前後に、任される責任が一段と大きくなり、自分の得意分野で確固たる手応えを掴んだはずです。"
+    },
+    {
+      range: "36才〜44才",
+      title: "【第5巡・転換の9年】中宮帰還と人生最大の大勝負",
+      theme: "中心人物としての飛躍と人生の再定義",
+      pastDesc: "本命星が再び生まれの座（中宮）へと回座し、人生の第二のスタートを切る最もダイナミックな9年間です。これまでの経験を総動員して自らの殻を破り、組織や社会の中心人物として大活躍します。",
+      checkPoint: "【運命の転換点】36才〜40才にかけて、人生観を刷新するような大きな舞台への抜擢や、新たな挑戦の機会が訪れています。"
+    },
+    {
+      range: "45才〜53才",
+      title: "【第6巡・実力の9年】リーダーシップと大いなる実り",
+      theme: "組織を導く指導力と社会的影響力の拡大",
+      pastDesc: "確固たる地位を築き、多くの人々を牽引するリーダーとして真価を発揮する9年間です。自らの手腕で大きなプロジェクトを成功に導き、社会的・経済的な実りを存分に享受します。",
+      checkPoint: "【人生の実り】周囲を育てる喜びを知り、あなたの判断や言葉が多くの人にとっての指針となります。"
+    },
+    {
+      range: "54才〜62才",
+      title: "【第7巡・集大成の9年】経験の結実と次世代への継承",
+      theme: "人生の総決算と豊かな人徳の伝承",
+      pastDesc: "これまでのキャリアと人生の集大成を迎え、培った智慧や人脈を後進に惜しみなく授ける豊かな円熟期です。安定した生活基盤のもと、心からの感謝と尊敬に包まれます。",
+      checkPoint: "【円熟の証】肩の力を抜きながらも、要所を締める重鎮として周囲から絶大な信頼を寄せられます。"
+    },
+    {
+      range: "63才以降",
+      title: "【第8巡以降・黄金の9年】精神的自由と心穏やかな黄金時代",
+      theme: "智慧の分かち合い、悠々自適の第二の人生",
+      pastDesc: "世俗のしがらみや義務から完全に解放され、純粋な好奇心や趣味、精神的な探求に生きる最高の自由期です。蒔いてきた徳が光となり、生涯にわたり温かく守られます。",
+      checkPoint: "【生涯の祝福】心穏やかな日々に感謝が溢れ、あなたの存在そのものが家族や仲間の大きな心の支えとなります。"
+    }
+  ];
+
+  return themes.map(s => formatLifeStage(s, currentAge));
+}
+
+// 3. 令翠学（12年周期・バイオリズム大運サイクル）
+function generateReisuiLifeStages(currentAge: number, reisuiStar: string): AgePeriodLifeStage[] {
+  const themes = [
+    {
+      range: "0才〜11才",
+      title: "【第1周期・12年の種蒔き】無垢な受容と生命力の涵養",
+      theme: "素直な育ちと家族の温もり、豊かな感性の基礎",
+      pastDesc: "令翠学の12運命周期（背信期・令期・精算期・開拓期・生長期・決定期・健康期・人気期・油断期・再開期・経済期・充実期）を人生で初めて一周する期間です。純粋無垢な心であらゆる経験を吸収し、一生の気質の根幹が育まれました。",
+      checkPoint: "【幼少の原体験】この時期に親や周囲から注がれた愛情が、あなたの一生の自己肯定感の源泉となっています。"
+    },
+    {
+      range: "12才〜23才",
+      title: "【第2周期・12年の開拓】青春の自立と果敢な挑戦",
+      theme: "試行錯誤を通じた自己発見と人生の進路決定",
+      pastDesc: "自分の意志で進路を選択し、社会へ向けて飛び出す激動の12年間です。思春期の葛藤や挫折を乗り越えながら、自分の芯となる価値観と才能を確立していきました。",
+      checkPoint: "【過去の答え合わせ】20才前後に、人生の大きな岐路（進学・就職・大きな出会い）を自らの決断で切り拓いた経験があります。"
+    },
+    {
+      range: "24才〜35才",
+      title: "【第3周期・12年の確立】キャリアの土台形成と飛躍",
+      theme: "社会での独立独歩、実力と信頼の獲得期",
+      pastDesc: "社会の第一線で実力を遺憾なく発揮し、自分ならではのポジションを確立する12年です。仕事での成功体験とともに、パートナーシップや家庭などの基盤が強固に築かれます。",
+      checkPoint: "【過去・現在の照らし合わせ】20代後半から30代前半にかけて、キャリアや人生の方向性を決定づける重要な勝負所を経験しています。"
+    },
+    {
+      range: "36才〜47才",
+      title: "【第4周期・12年の充実】実力発揮と人生の黄金収穫期",
+      theme: "大願成就、最高潮のバイオリズムと大成",
+      pastDesc: "令翠学のバイオリズムが最高潮に達する、人生最大の収穫期です。これまでの努力が大きな果実となって実を結び、社会的地位も経済的豊かさもピークを迎えます。",
+      checkPoint: "【人生の黄金期】自分の才能を信じて思い切った挑戦をすることで、想像を遥かに超える大成功を掴み取ることができます。"
+    },
+    {
+      range: "48才〜59才",
+      title: "【第5周期・12年の円熟】人徳と指導力による大成",
+      theme: "後進への継承、安定した基盤と大いなる豊かさ",
+      pastDesc: "自らの成功を周囲に分かち合い、組織や後進を育成することに喜びを見出す円熟の12年間です。確固たる信用と人徳に支えられ、心穏やかで豊かな生活基盤を享受します。",
+      checkPoint: "【人徳の証】多くの人々から相談を受け、感謝される存在として社会的に重要な役割を果たし続けます。"
+    },
+    {
+      range: "60才〜71才",
+      title: "【第6周期・12年の再創造】還暦と新しい人生の謳歌",
+      theme: "精神的自由、自由な情熱に生きる第二の青春",
+      pastDesc: "還暦を迎え、バイオリズムが新たなスタートラインへと回帰する第二の青春時代です。培った智慧と経験を活かし、真に心惹かれる新しい趣味や活動に没頭することができます。",
+      checkPoint: "【第二の人生】しがらみから解き放たれ、自分らしい生き方を謳歌する喜びに満ち溢れます。"
+    },
+    {
+      range: "72才以降",
+      title: "【第7周期以降・12年の安泰】生涯の徳の結実と穏やかな日々",
+      theme: "心穏やかな安らぎ、感謝と愛に満ちた黄金時代",
+      pastDesc: "生涯を通じて蒔いてきた徳の種が、美しい果実となってあなたを生涯温かく守り続けます。家族や仲間に囲まれ、愛と感謝に満ちた心穏やかな日々を過ごします。",
+      checkPoint: "【生涯の安泰】あなたの歩んできた軌跡そのものが、次世代にとってのかけがえのない道標となります。"
+    }
+  ];
+
+  return themes.map(s => formatLifeStage(s, currentAge));
+}
+
+// 4. 総合（全体統合ライフステージ）
+function generateOverallLifeStages(currentAge: number): AgePeriodLifeStage[] {
   const stagesConfig = [
     {
       range: "0才〜18才",
@@ -550,40 +1135,13 @@ function generateLifeStages(currentAge: number, baseSeed: number, fortuneType: '
     }
   ];
 
-  return stagesConfig.map(s => {
-    const [minAgeStr, maxAgeStr] = s.range.replace('才', '').replace('以降', '').split('〜');
-    const minAge = parseInt(minAgeStr, 10);
-    const maxAge = maxAgeStr ? parseInt(maxAgeStr, 10) : 120;
-    
-    let timingType: 'past' | 'current' | 'future' = 'past';
-    if (currentAge >= minAge && currentAge <= maxAge) {
-      timingType = 'current';
-    } else if (currentAge < minAge) {
-      timingType = 'future';
-    }
-
-    let dynamicDesc = s.pastDesc;
-    if (timingType === 'current') {
-      dynamicDesc = `【まさに今、あなたはこの人生の重要なステージの只中にいます】\n${s.pastDesc}\n現在、あなたは次のステージへ向かうための大きな分岐点に立っており、日々の選択の一つひとつが今後の未来を大きく決定づける鍵となっています。`;
-    } else if (timingType === 'future') {
-      dynamicDesc = `【これから迎える未来のステージです】\n${s.pastDesc}\n現在の努力や経験がすべてこの時期の大きな収穫へと直結していきます。楽しみにして準備を進めてください。`;
-    }
-
-    return {
-      ageRange: s.range,
-      stageTitle: s.title,
-      timingType,
-      lifeTheme: s.theme,
-      description: dynamicDesc,
-      checkPoint: s.checkPoint
-    };
-  });
+  return stagesConfig.map(s => formatLifeStage(s, currentAge));
 }
 
 // ----------------------------------------------------
 // メイン鑑定計算関数
 // ----------------------------------------------------
-export function calculateFortune(birthdate: string, name: string): FortuneResult {
+export function calculateFortune(birthdate: string, name: string, gender: string = 'male'): FortuneResult {
   const [y, m, d] = birthdate.split('-').map(Number);
   const nameBase = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const seedBase = y + m + d + nameBase;
@@ -759,7 +1317,7 @@ export function calculateFortune(birthdate: string, name: string): FortuneResult
 
   const nsProfile = NINE_STAR_PROFILES[honmeiStar] || NINE_STAR_PROFILES["一白水星"];
 
-  const nineStarLifeStages = generateLifeStages(currentAge, seedBase + 10, 'nineStar');
+  const nineStarLifeStages = generateNineStarLifeStages(currentAge, honmeiStar);
 
   const nineStarDetail: NineStarNatureDetail = {
     star: honmeiStar,
@@ -801,11 +1359,8 @@ export function calculateFortune(birthdate: string, name: string): FortuneResult
   };
   const stemInfo = STEM_ELEMENTS[dayStem] || STEM_ELEMENTS["甲"];
 
-  const twelveFatesList = ["長生", "沐浴", "冠帯", "建禄", "帝旺", "衰", "病", "死", "墓", "絶", "胎", "養"];
-  const twelveFate = twelveFatesList[seedBase % 12];
-
-  const centerStarsList = ["比肩", "劫財", "食神", "傷官", "偏財", "正財", "偏官", "正官", "偏印", "印綬"];
-  const centerStar = centerStarsList[(seedBase + 3) % 10];
+  const twelveFate = getTwelveFate(dayStem, pillars.day.charAt(1));
+  const centerStar = getCenterStar(dayStem, pillars.month.charAt(1));
 
   const fpYearFlows = {
     lastYear: {
@@ -881,100 +1436,458 @@ export function calculateFortune(birthdate: string, name: string): FortuneResult
     goodAffinity: ["干合となる相手", "三合木局・金局の相手", "支合の相手"],
     affinityDetail: "あなたの不足している五行を補ってくれる相手や、同じ志を持って並走してくれる自立したパートナーと最高の関係を築けます。",
     yearFlows: fpYearFlows,
-    lifeStages: generateLifeStages(currentAge, seedBase + 20, 'fourPillars'),
+    lifeStages: generateFourPillarsLifeStages(y, m, d, currentAge, gender),
     explanation: `${name}さんの四柱推命は、日干「${dayStem}」を中心とした堂々たる命式です。\n中心星「${centerStar}」と十二運「${twelveFate}」が調和し、年を重ねるごとに魅力と実力が増していく大器晩成の気品を漂わせています。`
   };
 
   // ----------------------------------------------------
   // 3. 令翠学 (Reisui)
   // ----------------------------------------------------
-  const reisuiStar = REISUI_STARS[(seedBase) % 12];
-  const reisuiSub = REISUI_STARS[(seedBase + 6) % 12];
-  const yinYang = seedBase % 2 === 0 ? "陽令星" : "陰令星";
+  const reisuiInfo = getReisuiStar(y, m, d);
+  const reisuiStar = reisuiInfo.star;
+  const reisuiSub = reisuiInfo.subStar;
+  const yinYang = reisuiInfo.yinYang;
 
-  const cycleOffset = {
-    reisui: (seedBase + 1) % 12,
-    four: (seedBase + 5) % 12,
-    nine: (seedBase + 9) % 12
+  const rLastYearStage = getReisuiYearCycle(reisuiInfo.reiBranch, 2025);
+  const rThisYearStage = getReisuiYearCycle(reisuiInfo.reiBranch, 2026);
+  const rNextYearStage = getReisuiYearCycle(reisuiInfo.reiBranch, 2027);
+
+  const getCycleFlowContent = (cycle: typeof REISUI_12_CYCLES[0]) => {
+    switch (cycle.name) {
+      case "開拓":
+        return {
+          work: "新しいプロジェクトの立ち上げ、起業・独立、新天地への転職に絶好の好機！蒔いた種が向こう10年の実りとなります。",
+          romance: "新しい出会いや関係の進展が期待できる春の幕開け。過去を断ち切り、まっさらな心で愛を受け入れましょう。",
+          health: "エネルギーが湧き上がり意欲満点。新しいスポーツや健康的な生活習慣をスタートさせるのに最適です。",
+          family: "新しい生活環境への移行や模様替え吉。明るい希望を共有することで家族の結束が強まります。",
+          money: "将来の可能性を広げるための前向きな自己投資が大吉。目先の損得より長期的な成長にお金を使いましょう。",
+          advice: "過去のしがらみや前例にとらわれず、直感のままに新しい一歩を踏み出してください！"
+        };
+      case "生長":
+        return {
+          work: "蒔いた種が急速に芽を出し、成果が目に見えて現れ始める成長期。周囲からの協力も得て勢いが加速します。",
+          romance: "深まる信頼関係の中で、具体的な将来の話（同棲・婚約など）がトントン拍子に進展します。",
+          health: "フットワーク軽く活動できる好調期。ただし忙しさにかまけて無理を重ねないよう適度な休養を。",
+          family: "家族でのレジャーや旅行で絆が深まる年。嬉しいニュースや祝賀行事に恵まれます。",
+          money: "手応えのある収入増や新事業の立ち上がりに伴い、経済的な手応えを感じられる年です。",
+          advice: "急激な成長を恐れず、自信を持ってチャンスの波に飛び乗ってください。"
+        };
+      case "精算":
+        return {
+          work: "冬の総決算。無理な事業拡大は避け、不採算な業務の見直しや身の回りの整理整頓に徹して吉。",
+          romance: "曖昧な関係や我慢を強いられる関係に自然と結論が出る時。心のデトックスを最優先に。",
+          health: "冷えや慢性疲労に注意が必要な年。無理をせず、温泉や質の高い睡眠で心身を休めてください。",
+          family: "身内への感謝を伝え、家族の役割分担を再構築する好機。無理な衝突は避けて穏やかに。",
+          money: "固定費の見直しや無駄な出費のカットなど、守りの金運を固めて次の春に備えましょう。",
+          advice: "手放すことは失うことではありません。次の春に新しい幸福を掴むための大切な準備です。"
+        };
+      default:
+        return {
+          work: `${cycle.name}期のバイオリズムに寄り添い、状況に応じた柔軟な舵取りで着実な成果を築きましょう。`,
+          romance: "自然体のコミュニケーションを心がけ、互いのリズムを尊重することで絆が深まります。",
+          health: "季節の変わり目の体調変化に気を配り、規則正しい生活習慣を維持しましょう。",
+          family: "家族との温かい対話を大切にすることで、家庭全体に安心感が広がります。",
+          money: "収支のバランスを保ち、堅実な資産管理を心がけることで安定した運気を維持できます。",
+          advice: `${cycle.name}期の持つ運命の波を信じ、無理のないペースで歩みを進めてください。`
+        };
+    }
   };
 
-  const rLastYearStage = BIORHYTHM_CYCLE[(cycleOffset.reisui + 2025) % 12];
-  const rThisYearStage = BIORHYTHM_CYCLE[(cycleOffset.reisui + 2026) % 12];
-  const rNextYearStage = BIORHYTHM_CYCLE[(cycleOffset.reisui + 2027) % 12];
+  const rLastContent = getCycleFlowContent(rLastYearStage);
+  const rThisContent = getCycleFlowContent(rThisYearStage);
+  const rNextContent = getCycleFlowContent(rNextYearStage);
 
   const reisuiYearFlows = {
     lastYear: {
       year: 2025,
       label: "2025年(去年)",
-      starOrStage: `バイオリズム：【${rLastYearStage.name}期】(スコア: ${rLastYearStage.score}点)`,
-      theme: rLastYearStage.description,
+      starOrStage: `令翠学運命周期：${rLastYearStage.title}`,
+      theme: rLastYearStage.theme,
       score: rLastYearStage.score,
-      work: "昨年のステージに応じた地道な積み重ねが確実に実を結んだ時期。",
-      romance: "心を通わせる深い対話を通じて関係性が洗練されました。",
-      health: "生活習慣のリズムを整えることが最大の防御となった時期。",
-      family: "身内との協力体制を整え、心の拠り所を築きました。",
-      money: "堅実な計画に基づいた運用で無理のない収支を維持。",
-      keyAdvice: "去年の経験すべてが、今のあなたを支える強固な根っこになっています。"
+      work: rLastContent.work,
+      romance: rLastContent.romance,
+      health: rLastContent.health,
+      family: rLastContent.family,
+      money: rLastContent.money,
+      keyAdvice: rLastContent.advice
     },
     thisYear: {
       year: 2026,
       label: "2026年(今年)",
-      starOrStage: `バイオリズム：【${rThisYearStage.name}期】(スコア: ${rThisYearStage.score}点)`,
-      theme: rThisYearStage.description,
+      starOrStage: `令翠学運命周期：${rThisYearStage.title}`,
+      theme: rThisYearStage.theme,
       score: rThisYearStage.score,
-      work: "バイオリズムの波に乗り、温めてきた計画を具現化する最高のタイミング。",
-      romance: "自然体でいられる最高のパートナーシップを引き寄せる好機。",
-      health: "心身のバランスが整い、活力が湧き出ます。適度な運動を習慣化して。",
-      family: "家庭内に笑顔と温かい会話が満ち溢れる安心の年。",
-      money: "努力に応じた正当な経済的実りを手にするチャンス期。",
-      keyAdvice: "周期の追い風を信じて、思い切った一歩を踏み出してください。"
+      work: rThisContent.work,
+      romance: rThisContent.romance,
+      health: rThisContent.health,
+      family: rThisContent.family,
+      money: rThisContent.money,
+      keyAdvice: rThisContent.advice
     },
     nextYear: {
       year: 2027,
       label: "2027年(来年)",
-      starOrStage: `バイオリズム：【${rNextYearStage.name}期】(スコア: ${rNextYearStage.score}点)`,
-      theme: rNextYearStage.description,
+      starOrStage: `令翠学運命周期：${rNextYearStage.title}`,
+      theme: rNextYearStage.theme,
       score: rNextYearStage.score,
-      work: "今年掴んだ成果をさらに広げ、新たなステージへ昇華させる時期。",
-      romance: "落ち着いた信頼関係の中で、未来の約束を交わす時。",
-      health: "メリハリのある休養を取り入れ、長期戦に備える準備を。",
-      family: "家族との時間を最優先にすることで、全体の運気が安定します。",
-      money: "将来に向けた計画的な貯蓄と手堅い運用が吉運を呼びます。",
-      keyAdvice: "焦らず自然体のリズムで、着実に前進を続けてください。"
+      work: rNextContent.work,
+      romance: rNextContent.romance,
+      health: rNextContent.health,
+      family: rNextContent.family,
+      money: rNextContent.money,
+      keyAdvice: rNextContent.advice
     }
   };
+
+  // 令翠学12宿星マスタープロファイル（珀龍令翠・令翠学公式体系に準拠）
+  const REISUI_STAR_PROFILES: Record<string, any> = {
+    "月星": {
+      personality: "「愛することを学び、慈愛ある心を持つことこそが人の生きる道である」という精神を宿す、博愛と調和の星です。他者の喜びや痛みに深く寄り添い、無償の愛と献身を注ぐ心のオアシスのような存在です。他人の相談には親身に的確な助言ができる一方、自分のことになると優柔不断になりやすい純粋な優しさを持っています。",
+      strengths: [
+        "他者の痛みに寄り添い包み込む深い慈愛と共感力",
+        "見返りを求めず周囲を支える無償の献身性",
+        "人の隠れた良さや才能を直感で見抜く慧眼",
+        "どんな場にも温かな安心と調和をもたらす穏やかな人徳"
+      ],
+      weaknesses: [
+        "頼まれごとを断れず自分を後回しにする自己犠牲",
+        "他人の悩みやトラブルを背負いすぎて心身が疲弊する",
+        "自分の進路や選択になると迷いやすく優柔不断になる"
+      ],
+      cautions: "『他者の人生』と『自分の人生』に健全な境界線を引きましょう。時には毅然と『NO』と断る勇気を持つことが、あなたの気品と運気を守る最大の鍵となります。",
+      habits: "困っている人を見ると放っておけず、自分の予定や体調を犠牲にしてでも手を差し伸べてしまう思考パターンがあります。",
+      suitableJobs: [
+        "カウンセラー・心理職・セラピスト",
+        "人事・キャリアアドバイザー・相談支援",
+        "医療・看護・福祉・介護ケア",
+        "教育・保育・子育て支援・指導員",
+        "コミュニティ運営・NPO・ホスピタリティ事業"
+      ],
+      suitableJobDetail: "人と直接心を通わせ、誰かの支えや安心となる分野で無類の強さを発揮します。数字や効率だけを追う環境よりも、温かい信頼関係が循環する環境で大成します。",
+      communication: "相手の話を遮らず最後まで温かく聴く天性の聞き上手です。自分の本音や悩みも、信頼できるパートナーに定期的に打ち明けて心を開放しましょう。",
+      goodAffinity: ["土星", "天令星", "魚令星", "木星"],
+      affinityDetail: "対照星である土星（天令星）はあなたの迷いをどっしりと支えて形にしてくれます。同じ月令星の魚令星とは以心伝心で理解し合えます。"
+    },
+    "魚令星": {
+      personality: "人からものを頼まれると断れず、困っている人を放っておけない抜群の面倒見の良さを持つ情の深い星です。人情味に溢れ、誰に対しても親身に手を差し伸べる温かさを持っています。豊かな感受性と繊細な気配りで、周囲の人の心の機微を敏感に察知して癒やします。",
+      strengths: [
+        "困っている人を決して見捨てない抜群の面倒見の良さ",
+        "人の心の機微を敏感に察知する繊細な気配りと優しさ",
+        "誰からも愛される純粋で嘘のない温かい人柄",
+        "情に厚く、一度結んだ絆を大切にし続ける誠実さ"
+      ],
+      weaknesses: [
+        "お人好しすぎて都合よく利用されやすい",
+        "相手の感情の波やトラブルに巻き込まれやすい",
+        "情に流されて現実的な損得やルールを後回しにしがち"
+      ],
+      cautions: "相手の自立のためにも、時には手を出さずに温かく見守る距離感を保ちましょう。情と規律のバランスが運気を高めます。",
+      habits: "頼まれるとキャパシティを超えていても『大丈夫』と引き受けてしまう癖があります。",
+      suitableJobs: [
+        "ソーシャルワーカー・相談員・福祉指導",
+        "保育士・教育・学童支援",
+        "カスタマーサクセス・コンシェルジュ",
+        "クリエイティブ・イラスト・ハンドメイド",
+        "アロマ・リラクゼーション・ヒーリング"
+      ],
+      suitableJobDetail: "人の役に立っている実感がダイレクトに得られる職種や、細やかな愛情・気配りを表現できるアットホームな職場で真価を発揮します。",
+      communication: "理屈よりも心と心の触れ合いを重視します。感謝の気持ちを素直に伝え合うことで、深い絆を育みます。",
+      goodAffinity: ["月星", "土星", "天令星"],
+      affinityDetail: "月星とは深い魂の共鳴が起こり、土星からは現実的な安心感と守りを与えられます。"
+    },
+    "火星": {
+      personality: "クールかつ知性的で、極めて忍耐強い芯の強さを持つ星です。物事を感情に流されず冷静に分析する緻密な思考能力を備え、一度引き受けた責任は何があっても最後までやり遂げる不屈の気概を持っています。一見控えめで静かに見えますが、内面には確固たる信念を秘めています。",
+      strengths: [
+        "感情に左右されないクールで客観的な大人の判断力",
+        "物事の構造や本質を筋道立てて捉える緻密な分析力",
+        "逆境や困難にも決して音を上げない不屈の忍耐力",
+        "任された重責を完璧に全うする強い責任感と誠実さ"
+      ],
+      weaknesses: [
+        "感情を表に出さないため近寄りがたく冷徹に見られがち",
+        "慎重に考えすぎて即断即決のチャンスを逃すことがある",
+        "人に頼ることが苦手で、一人で責任を抱え込んでしまう"
+      ],
+      cautions: "冷静沈着さは大きな武器ですが、時には素直な感情や笑顔を見せることで周囲との距離が縮まります。一人で抱え込まず仲間を信頼しましょう。",
+      habits: "問題が起きた時、周囲に相談せず一人で黙々と背負い込んで解決しようとする傾向があります。",
+      suitableJobs: [
+        "経営企画・戦略コンサルタント・リサーチ",
+        "法務・財務・会計・公認会計士・税理士",
+        "研究開発・システムエンジニア・データサイエンティスト",
+        "品質管理・プロジェクトマネージャー",
+        "専門技術職・学術研究・アナリスト"
+      ],
+      suitableJobDetail: "緻密な論理的思考や高度な専門知識、長期的な忍耐力が求められる知的な分野で圧倒的な実績を築きます。",
+      communication: "言葉数は控えめですが、発言の一つひとつに確固たる根拠と重みがあります。温かい一言を添えると信頼がさらに深まります。",
+      goodAffinity: ["水星", "冥令星", "氷令星"],
+      affinityDetail: "対照星の水星はあなたの知性に明るい突破力を吹き込み、同じ火令星の冥令星とは戦略面で抜群の補完関係を築けます。"
+    },
+    "冥令星": {
+      personality: "内向性と外向性の二面性を持ち合わせ、状況や相手に応じて自らを自在に使い分けることができる知性派です。物事の本質を深く探求する集中力と、社交の場で見せるスマートな柔軟性を併せ持ちます。感情のコントロールに長け、複雑な利害関係の中でも冷静に立ち回る戦略家です。",
+      strengths: [
+        "相手や環境に合わせて柔軟に振る舞いを変えられる高度な適応力",
+        "表面的な現象に惑わされず核心を見抜く鋭い洞察力",
+        "興味を持った分野をどこまでも深掘りする驚異の集中力",
+        "感情を巧みにコントロールして成果を導くセルフマネジメント力"
+      ],
+      weaknesses: [
+        "本心が外から見えにくく秘密主義だと誤解されやすい",
+        "感情を内に抑え込みすぎてストレスを一人で溜めがち",
+        "一度心を閉ざすと頑固になり妥協を許さない一面がある"
+      ],
+      cautions: "すべてを一人で抱え込まず、心から信頼できる特定のパートナーには素の弱みや本音を分かち合う場を持ちましょう。",
+      habits: "相手の本音を観察するあまり、自分の意見を後出しにして慎重になりすぎる傾向があります。",
+      suitableJobs: [
+        "リサーチ・市場調査・アナリスト",
+        "戦略企画・渉外交渉・ブランド戦略",
+        "編集者・ライター・コンテンツプロデューサー",
+        "専門技術スペシャリスト・開発設計",
+        "人事評価・カウンセリング・心理分析"
+      ],
+      suitableJobDetail: "多角的な視点や洞察力、専門的な深掘りが求められるポジションで唯一無二の価値を発揮します。",
+      communication: "相手の懐にスッと入るスマートな会話術を持ちます。親しい相手には飾らない素顔を見せると深い絆が育まれます。",
+      goodAffinity: ["火星", "水星", "木星"],
+      affinityDetail: "火星の揺るぎない知性とタッグを組むことで、理論と実践が完璧に噛み合った強力な成果を生み出せます。"
+    },
+    "金星": {
+      personality: "朝一番の新鮮な空気のようにフレッシュで若々しく、邪気のない爽やかな気質の持ち主です。流行や美に対する感度が抜群で、新しい世界や未知のカルチャーに恐れず飛び込んでいく天性の開拓力を持っています。人懐っこく明るいオーラで、周囲に新鮮な風を吹き込みます。",
+      strengths: [
+        "場を一瞬で明るくするフレッシュで爽やかな清潔感",
+        "時代のトレンドや美の息吹を先取りする高感度なセンス",
+        "未知の環境や新しい挑戦に軽やかに飛び込む行動力",
+        "邪気がなく素直で、誰からも自然と可愛がられる愛され力"
+      ],
+      weaknesses: [
+        "好奇心が旺盛すぎて目移りし、飽きっぽい一面がある",
+        "思いつきや衝動で動き、最後までやり遂げる持続力に課題",
+        "見栄を張ったり直感的な出費で浪費しやすい"
+      ],
+      cautions: "始めたことを形にするまで粘り強く続ける習慣を持ちましょう。あなたの爽やかな開拓力に『継続性』が加われば無敵です。",
+      habits: "気分が乗っている時は超高速で動く反面、興味を失うと途端に後回しにしてしまう癖があります。",
+      suitableJobs: [
+        "広報・PR・ブランドマーケティング",
+        "ファッション・アパレル・コスメ・デザイン",
+        "イベントプロデューサー・エンタメ・メディア",
+        "新規事業立ち上げ・トレンド発信・インフルエンサー",
+        "ブライダル・スタイリスト・ライフスタイル提案"
+      ],
+      suitableJobDetail: "人と接し、楽しさや最新のトレンドを発信する華やかな舞台で天賦の才を最大限に発揮します。",
+      communication: "快活で誰とでも即座に打ち解ける天才的な社交性を持ちます。人の話を腰を折らずに聞く姿勢を意識するとさらに人望が高まります。",
+      goodAffinity: ["木星", "小令星", "土星"],
+      affinityDetail: "対照星の木星はあなたの軽やかさに重厚な安定感を与え、長期的な成功を確固たるものにしてくれます。"
+    },
+    "小令星": {
+      personality: "夜空に光り輝く星のように華やかで、表面はざっくばらんで陽気、花のような明るさで人を和ませる魅力の星です。温和で気さくな人柄で、殺伐とした空気も一瞬で和やかに変えてしまう天性のムードメーカーです。細やかな気配りと愛嬌で、多くのファンを引き寄せます。",
+      strengths: [
+        "周囲をパッと明るく照らす花のような華やかさと親しみやすさ",
+        "気取らずざっくばらんに人と心を通わせる陽気な人徳",
+        "場の緊張を自然にほぐす卓越したユーモアと気配り",
+        "人を惹きつけて離さない天性のチャーミングな魅力"
+      ],
+      weaknesses: [
+        "周囲の期待に応えようとして八方美人になり気疲れする",
+        "シビアな決断や厳しい指摘を求められる場面で優柔不断になる",
+        "褒め言葉やおだてに弱く、甘い誘いに流されやすい"
+      ],
+      cautions: "誰からも好かれようと無理をせず、自分の本音や『譲れない軸』を大切にしましょう。時には断ることもあなたを守る優しさです。",
+      habits: "波風を立てないように、その場では相手に合わせて笑ってごまかしてしまう傾向があります。",
+      suitableJobs: [
+        "接客・サービス・ホスピタリティ統括",
+        "司会・アナウンサー・タレント・MC",
+        "セールス・顧客リレーション・サロン運営",
+        "ウェディングプランナー・フラワーデザイナー",
+        "フード・飲食・カフェプロデュース"
+      ],
+      suitableJobDetail: "笑顔と華やかさでお客様をもてなし、ファンやリピーターを増やしていく対人サービスやエンタメ分野で大活躍します。",
+      communication: "上品で明るい物腰が周囲に深い安心感を与えます。重要な場面では真剣な眼差しと言葉を伝えることで大きな信頼を勝ち得ます。",
+      goodAffinity: ["金星", "木星", "海令星"],
+      affinityDetail: "金星とは互いの華やかさを引き立て合い、木星からは温かく守られる深い安心感を得られます。"
+    },
+    "土星": {
+      personality: "向上心が極めて強くまっすぐな性分で、曲がったことを嫌い、神経細やかで繊細な清廉さを持つ星です。高い理想と誇りを胸に抱き、自らの信念をどこまでもまっすぐに貫きます。不正や妥協を許さない潔癖さと、自らを常に磨き続ける崇高な精神性を備えています。",
+      strengths: [
+        "常に自己を高め高みを目指し続ける強い向上心",
+        "嘘やごまかしを一切許さない清廉潔白な正義感と倫理観",
+        "細部まで行き届く繊細な配慮と誠実な責任感",
+        "困難に屈せず掲げた目標をまっすぐに貫く誇り高い意志"
+      ],
+      weaknesses: [
+        "潔癖すぎて他人の些細なミスや甘えを許せず衝突しやすい",
+        "神経質になりすぎて自分自身を追い込んでしまいがち",
+        "プライドが高く、自分の非を素直に認めるのに時間がかかる"
+      ],
+      cautions: "正論だけで人を裁かず、『清濁併せ呑む』大らかさを養いましょう。不完全な人間らしさを許容する心の広さが、あなたの器を何倍にも大きくします。",
+      habits: "基準に満たない物事や不条理を見ると、我慢できずに厳しく指摘してしまう癖があります。",
+      suitableJobs: [
+        "経営リーダー・事業統括・取締役",
+        "法曹・裁判官・弁護士・行政書士",
+        "教育者・教授・人材育成の最高責任者",
+        "品質監査・コンプライアンス統括・公務員",
+        "伝統産業の継承者・格式ある組織のリーダー"
+      ],
+      suitableJobDetail: "規律と正義、格式が重んじられる分野や、組織全体の土台を正しく導くリーダーシップの場で真価を発揮します。",
+      communication: "言葉に嘘がなく圧倒的な説得力があります。相手の努力や長所をまず認めてからアドバイスすることで、絶大な人望が集まります。",
+      goodAffinity: ["月星", "天令星", "金星"],
+      affinityDetail: "対照星の月星はお互いの人生の最良のパートナー。あなたの厳格さに月星の慈愛が加わることで、完全無欠の器が完成します。"
+    },
+    "天令星": {
+      personality: "ガラスのように繊細で鋭敏な神経を持った、高い美意識と品格を漂わせる完璧主義者です。常識的で洗練された立ち居振る舞いを持ち、世俗の粗野なものを嫌う高潔な魂を持っています。物事の細やかな差異や美の本質を見極める卓越した審美眼を備えています。",
+      strengths: [
+        "誰をも惹きつける気品と洗練されたマナー・所作",
+        "本物と偽物を瞬時に見分ける鋭敏な審美眼と直感力",
+        "細部に至るまで一切の妥協を排する高い完璧主義",
+        "常識と礼節を重んじる気高く誠実な生き方"
+      ],
+      weaknesses: [
+        "精神的にデリケートで周囲の雑音やストレスに傷つきやすい",
+        "理想が高すぎて人を寄せ付けず孤立しやすい",
+        "プライドが邪魔して素直に弱音を吐くことができない"
+      ],
+      cautions: "心安らぐプライベート空間と静寂な時間を定期的に確保しましょう。繊細な感性を守るためのセルフケアが運気安定の秘訣です。",
+      habits: "不調和や無礼な言動を感じると、無言で心を閉ざして相手をシャットアウトしてしまう傾向があります。",
+      suitableJobs: [
+        "デザイナー・建築家・美術工芸家",
+        "VIP対応・秘書・国際儀礼・格式ある接遇",
+        "文筆家・思想家・評論家・大学教授",
+        "ハイブランド・美術商・キュレーター",
+        "専門性の高い独立事業・コンサルティング"
+      ],
+      suitableJobDetail: "美意識や高い品格、正確無比なクオリティが求められる格式ある世界で、唯一無二の存在感を放ちます。",
+      communication: "物静かですが洗練された言葉遣いが安心感を与えます。信頼できる人には冗談や弱音を見せることで、真の理解者が集まります。",
+      goodAffinity: ["土星", "月星", "魚令星"],
+      affinityDetail: "月星の深い優しさはあなたの孤高の心を優しく癒やし、土星の信念はあなたの繊細さを力強く守ってくれます。"
+    },
+    "木星": {
+      personality: "自分が心から納得しないと行動に移せない用意周到な慎重派で、スタートで人より後れを取ることがあっても、確実に大きな成果を残す大器晩成の星です。誠実で実直、地道な準備を怠らず、一度決めた目標には脇目も振らずに向き合い、ゆるぎない信頼を築き上げます。",
+      strengths: [
+        "綿密な準備と計画に基づくミスのない遂行力",
+        "一度納得したら困難にも屈せずやり抜く堅実な意志",
+        "誰からも裏切られない誠実さと揺るぎない社会的信用",
+        "時間をかけて確実な大輪を咲かせる大器晩成の力"
+      ],
+      weaknesses: [
+        "納得するまでに時間がかかり好機を逃しやすい慎重さ",
+        "突発的なトラブルや急な方針転換への対応が苦手",
+        "頑固で一度決めたやり方にこだわり融通が利かない"
+      ],
+      cautions: "時には『準備が8割でもまず動き出す』スピード感を意識しましょう。走りながら軌道修正することで、チャンスの波に乗ることができます。",
+      habits: "不安を解消するために準備を重ね、スタートラインに立つまでに時間をかけすぎてしまう癖があります。",
+      suitableJobs: [
+        "公務員・司法書士・法務行政",
+        "金融・信託・堅実な資産運用・リスク管理",
+        "研究・製造技術・インフラ・建築土木",
+        "農業・林業・環境保全・長期事業",
+        "医療・教育・伝統技術の継承"
+      ],
+      suitableJobDetail: "長年の信用と地道な実績がものを言う分野や、確実なルールと高い倫理性が求められる環境で大成します。",
+      communication: "飾らない実直な言葉が相手に強い安心感を与えます。素直な想いを言葉にして伝えることで、生涯の信頼関係が築かれます。",
+      goodAffinity: ["金星", "海令星", "月星"],
+      affinityDetail: "対照星の金星はあなたの堅苦しさを和らげて活気をもたらし、同じ木令星の海令星とは堅実な同志として深く信頼し合えます。"
+    },
+    "海令星": {
+      personality: "地道にコツコツと努力を重ねるタイプで、ルールや秩序を重んじる規律正しい星です。時に融通性を欠く傾向もありますが、自分が興味を持った対象や専門分野には寝食を忘れて深く没頭する驚異の探求心を持っています。目立たずとも陰で組織を支える真の立役者です。",
+      strengths: [
+        "どんな地味な作業も飽きずに続けられる驚異の継続力",
+        "決められたルールや約束を忠実に守る誠実な秩序感",
+        "関心のある専門分野を極限まで深掘りする没頭力",
+        "裏表がなく、組織の土台を静かに支える高い信頼性"
+      ],
+      weaknesses: [
+        "マニュアルや前例に縛られ臨機応変な対応が苦手",
+        "視野が自分の専門分野だけに狭まりやすい",
+        "想定外の変化に直面すると強いストレスを感じる"
+      ],
+      cautions: "ルールを守るだけでなく『何のためのルールか』という本質的な目的意識を持ちましょう。柔軟な遊び心を持つことで世界が大きく広がります。",
+      habits: "前例がないことに対して強い抵抗を感じ、まずは現状維持を選ぼうとする傾向があります。",
+      suitableJobs: [
+        "研究員・学術研究・専門データアナリスト",
+        "ITアーキテクト・品質保証エンジニア・デバッガー",
+        "公務員・コンプライアンス管理・文書統括",
+        "職人・精密機械・技術スペシャリスト",
+        "アーカイブ・司書・学芸員・記録管理"
+      ],
+      suitableJobDetail: "高度な専門知識の深掘りや、厳格なルール遵守が求められる正確無比な職場で唯一無二の信頼を獲得します。",
+      communication: "誠実で落ち着いた対話が得意です。時には自分の専門分野の面白さを楽しそうに語ることで、周囲を惹きつけます。",
+      goodAffinity: ["木星", "金星", "小令星"],
+      affinityDetail: "木星の信念があなたの探求をどっしりと支え、金星の機転があなたに新しい風と広い視野を吹き込みます。"
+    },
+    "水星": {
+      personality: "いつも明るくパワフルで、常に現実を見つめ、前を向いて力強く進んでいく行動派の星です。多少の失敗や挫折にも決してめげず、持ち前のバイタリティと現実感覚で道を切り拓いていきます。空想に逃げず地に足をつけ、結果にこだわるたくましい前進力を持っています。",
+      strengths: [
+        "どんな困難も吹き飛ばす明るさとパワフルな生命力",
+        "現実を正確に見極めて具体的な行動に落とし込む実行力",
+        "失敗を恐れず果敢に挑戦し、即座に立ち直るタフな精神力",
+        "周囲をグイグイ巻き込んで前進させる力強い牽引力"
+      ],
+      weaknesses: [
+        "せっかちで他人のゆっくりしたペースに苛立ちやすい",
+        "現実主義すぎて情緒やロマンに欠けると見られることがある",
+        "勢い余って周囲の感情や体調のケアを置き去りにしがち"
+      ],
+      cautions: "周囲の歩調にも温かい配慮を配りましょう。あなたのパワフルさに『仲間への思いやり』が加わることで、誰もがついてくる偉大なリーダーとなります。",
+      habits: "結論をすぐに求めたがり、プロセスよりも結果を優先して突っ走ってしまう癖があります。",
+      suitableJobs: [
+        "起業家・事業立ち上げ・統括リーダー",
+        "営業統括・ビジネスディベロップメント・ディレクター",
+        "スポーツ・フィットネス・アウトドアビジネス",
+        "商社・流通・物流・スピード重視の実業",
+        "プロデューサー・現場監督・推進リーダー"
+      ],
+      suitableJobDetail: "裁量権が大きく、スピード感と具体的な成果がダイレクトに求められるダイナミックな環境で最大のエネルギーを爆発させます。",
+      communication: "明るくストレートで分かりやすいコミュニケーションが得意です。相手への感謝や労いの言葉を意識的に増やすと強力な味方が育ちます。",
+      goodAffinity: ["火星", "氷令星", "月星"],
+      affinityDetail: "対照星の火星の知性とあなたの行動力が合わさることで、理論と実践が完璧に調和した大きな成果を収められます。"
+    },
+    "氷令星": {
+      personality: "エレガントでかつソフトなイメージを兼ね備え、物腰柔らかく人を惹きつける穏やかな魅力を持つ星です。フワフワとした優しさと温和な佇まいで、出会う人に深い安心感と癒やしを与えます。争いごとを好まない平和主義で、自然と人が集まってくる柔和な人徳を備えています。",
+      strengths: [
+        "誰をもホッと安心させるエレガントでソフトな気品",
+        "物腰柔らかく自然と人が寄ってくる穏やかな人徳と魅力",
+        "対立を避け、場に和やかな調和をもたらす天性の調停力",
+        "相手の気持ちを優しく受け止める柔らかな受容力"
+      ],
+      weaknesses: [
+        "流されやすく他人の強い意見にノーと言えない",
+        "芯の強さを表に出さないため優柔不断に見られやすい",
+        "自分の希望や主張を後回しにして我慢を重ねてしまう"
+      ],
+      cautions: "あなたの中にある静かな信念をもっと信じましょう。必要な場面では凛とした姿勢で自分の意思を表明することが、あなたの魅力をさらに輝かせます。",
+      habits: "相手に気を遣うあまり、自分の本音を胸の奥にしまい込んで笑顔で流してしまう傾向があります。",
+      suitableJobs: [
+        "接客・コンシェルジュ・広報・サロン経営",
+        "アロマ・リラクゼーション・エステ・美容",
+        "カウンセラー・福祉・相談援助・調停役",
+        "文化・アート・フラワー・インテリアコーディネート",
+        "ホスピタリティ・観光・ブライダル"
+      ],
+      suitableJobDetail: "美意識や優しさ、きめ細やかなホスピタリティが活かされる落ち着いた環境で、多くの人々に愛される存在となります。",
+      communication: "物腰が柔らかく、相手を包み込むような優しい会話が得意です。時には自分の希望も素直に言葉にすることで、より対等で深い信頼関係が築かれます。",
+      goodAffinity: ["水星", "火星", "冥令星"],
+      affinityDetail: "同じ水令星の水星とは深い波長の一致があり、火星の冷静な守りによってあなたの優しさが安心して発揮されます。"
+    }
+  };
+
+  const reisuiProfile = REISUI_STAR_PROFILES[reisuiStar] || REISUI_STAR_PROFILES["月星"];
 
   const reisuiDetail: ReisuiNatureDetail = {
     star: reisuiStar,
     subStar: reisuiSub,
+    reiStar: reisuiInfo.reiStar,
+    oppositeStar: reisuiInfo.oppositeStar,
     yinYang,
-    personality: `あなたの運命星は「${reisuiStar}（${yinYang}）」です。さらに裏星として「${reisuiSub}」の要素を宿しています。\n生まれ持った独自の美的センスと鋭い直感力を持ち、既存のルールに縛られない自由な生き方で輝く星です。裏星の繊細さが加わることで、大胆でありながら人の心の機微を察知する優しさを持っています。`,
-    strengths: [
-      `${reisuiStar}特有の唯一無二の感性と発想力`,
-      `裏星「${reisuiSub}」によるきめ細やかな配慮と共感力`,
-      `12年周期のバイオリズムを直感的に察知し波に乗る才能`,
-      `人とは違う切り口で価値を生み出すオリジナリティ`
-    ],
-    weaknesses: [
-      "気分屋で感情のアップダウンに振り回されやすい",
-      "他人の無神経な言動に深く傷つきやすい繊細さ",
-      "納得できないことには一切妥協できない不器用さ"
-    ],
-    cautions: "自分のバイオリズム（充電期・好調期）を把握し、無理に年中フルスロットルで走ろうとしないことが生涯の開運の秘訣です。",
-    habits: "気分が乗らない時は完全に引きこもり、好調な時は寝食を忘れて没頭する極端な行動パターンがあります。",
-    suitableJobs: [
-      "クリエイティブ・デザイン・企画",
-      "コンサルタント・カウンセラー",
-      "フリーランス・独立起業",
-      "広報・ブランディング・表現分野"
-    ],
-    suitableJobDetail: "マニュアル通りの仕事よりも、あなたのセンスや裁量が尊重される自由度の高い分野で最高の才能を発揮します。",
-    communication: "共感力が高く人の本質を見抜くため、聞き上手として愛されます。苦手な人とは無理に付き合わず距離を保って吉。",
-    goodAffinity: ["同気星の相手", "対照星の相手", "調和星の相手"],
-    affinityDetail: "運気の波を理解し合える仲間や、正反対の視点からあなたを補完してくれる対照星のパートナーと強い絆を結べます。",
+    personality: `あなたの令翠学における宿星は「${reisuiStar}（${yinYang}）」、本質を司る六令星は「${reisuiInfo.reiStar}」、対を成す宿星は「${reisuiSub}」、対照星は「${reisuiInfo.oppositeStar}」です。\n${reisuiProfile.personality}`,
+    strengths: reisuiProfile.strengths,
+    weaknesses: reisuiProfile.weaknesses,
+    cautions: reisuiProfile.cautions,
+    habits: reisuiProfile.habits,
+    suitableJobs: reisuiProfile.suitableJobs,
+    suitableJobDetail: reisuiProfile.suitableJobDetail,
+    communication: reisuiProfile.communication,
+    goodAffinity: reisuiProfile.goodAffinity,
+    affinityDetail: reisuiProfile.affinityDetail,
     yearFlows: reisuiYearFlows,
-    lifeStages: generateLifeStages(currentAge, seedBase + 30, 'reisui'),
-    explanation: `${name}さんの支配星は「${reisuiStar}（${yinYang}）」、裏星は「${reisuiSub}」です。\n12年のバイオリズムの波を味方につけることで、驚くほどスムーズに望む人生を引き寄せることができます。`
+    lifeStages: generateReisuiLifeStages(currentAge, reisuiStar),
+    explanation: `${name}さんの令翠学における宿星は「${reisuiStar}（六令星：${reisuiInfo.reiStar}）」です。\n2025年の冬の【精算期】を経て、2026年（今年）は運命周期の新たな春の幕開けである【開拓期】を迎えています。\nこの人生の四季がもたらす大いなる追い風に乗り、新しい一歩を踏み出すことで実りを引き寄せることができます。`
   };
 
   // ----------------------------------------------------
@@ -1038,7 +1951,15 @@ export function calculateFortune(birthdate: string, name: string): FortuneResult
     lifeTheme: "『自らの信念を貫きながら、温かな愛と知恵で周囲を照らす人生の航海者』",
     synthesisAdvice: `プロの鑑定士として、${name}さんの命式・星回りを深く読み解いて強く感じるのは、**『生まれ持った器の大きさと、内に秘めた純度の高い情熱』**です。\n\n四柱推命が示す「${stemInfo.nature}」の如き芯の強さ、九星気学が示す「${honmeiStar}」の知性、そして令翠学が示す「${reisuiStar}」の唯一無二の感性。\nこれら3つの占術が口を揃えて告げている共通の真実は、**『あなたには、自分の手で運命を切り拓き、人を導いていく確固たる力がすでに備わっている』**ということです。\n\n過去のあなたは、周囲に理解されない孤独や、理想と現実の狭間での葛藤を経験されたかもしれません。しかし、それらの試練はすべて、あなたの魂を磨き、誰よりも人の痛みがわかる優しい強さを培うための必然の通過儀礼でした。\n\n2026年という今年は、これまでの忍耐と努力が一気に報われる、人生でも指折りの大飛躍の年盤を迎えています。自分の直感と才能を疑わず、胸を張って歩みを進めてください。あなたの前には、想像以上に明るく豊かな未来が広がっています。`,
     yearFlows: overallYearFlows,
-    lifeStages: generateLifeStages(currentAge, seedBase + 40, 'overall')
+    lifeStages: generateOverallLifeStages(currentAge)
+  };
+
+  // バイオリズムオフセット（令翠学の12運命周期と連動）
+  const reisuiOffset = (12 - ((reisuiInfo.reiBranch + 6) % 12)) % 12;
+  const cycleOffset = {
+    reisui: reisuiOffset,
+    four: (seedBase + 5) % 12,
+    nine: (seedBase + 9) % 12
   };
 
   // 100年分のバイオリズムデータ
@@ -1047,7 +1968,7 @@ export function calculateFortune(birthdate: string, name: string): FortuneResult
     const age = i;
     const yearSeed = seedBase + targetYear;
     
-    const yearData = generatePeriodData(yearSeed, `${targetYear}年`, targetYear, age, cycleOffset);
+    const yearData = generatePeriodData(yearSeed, `${targetYear}年`, targetYear, age, cycleOffset, false, reisuiInfo.reiBranch);
     yearData.months = Array.from({ length: 12 }).map((_, monthIndex) => {
       const targetMonth = monthIndex + 1;
       const monthSeed = yearSeed + targetMonth * 100;
@@ -1056,18 +1977,72 @@ export function calculateFortune(birthdate: string, name: string): FortuneResult
         four: (cycleOffset.four + monthIndex) % 12,
         nine: (cycleOffset.nine + monthIndex) % 12
       };
-      return generatePeriodData(monthSeed, `${targetMonth}月`, targetMonth, age, monthOffset, true);
+      return generatePeriodData(monthSeed, `${targetMonth}月`, targetMonth, age, monthOffset, true, reisuiInfo.reiBranch);
     });
     return yearData;
   });
 
-  // ターニングポイント
+  // ----------------------------------------------------
+  // 占術別ターニングポイント（婚期・仕事運のベスト年）の個別算出
+  // ----------------------------------------------------
   const futureYears = hundredYears.filter(yData => yData.periodValue >= currentYear && yData.periodValue <= currentYear + 30);
-  let bestMarriageYear = futureYears[0];
-  let bestWorkYear = futureYears[0];
+
+  // 1. 総合 (Overall): 3占術の統合バイオリズムに基づくピーク年
+  let bestMarriageOverall = futureYears[0];
+  let bestWorkOverall = futureYears[0];
   for (const yData of futureYears) {
-    if (yData.marriage.value > bestMarriageYear.marriage.value) bestMarriageYear = yData;
-    if (yData.work.value > bestWorkYear.work.value) bestWorkYear = yData;
+    if (yData.marriage.value > bestMarriageOverall.marriage.value) bestMarriageOverall = yData;
+    if (yData.work.value > bestWorkOverall.work.value) bestWorkOverall = yData;
+  }
+
+  // 2. 令翠学 (Reisui):
+  // 婚期: 12運命周期の「人気」（人望・良縁・願望達成）または「充実」（大成）
+  // 仕事: 12運命周期の「充実」（12年の最高峰・完成）または「経済」（収穫）
+  const reisuiMarriageCand = futureYears.filter(y => y.stageReisui.name === "人気" || y.stageReisui.name === "充実");
+  const reisuiMarriageYear = reisuiMarriageCand.length > 0 ? reisuiMarriageCand[0] : bestMarriageOverall;
+
+  const reisuiWorkCand = futureYears.filter(y => y.stageReisui.name === "充実" || y.stageReisui.name === "経済");
+  const reisuiWorkYear = reisuiWorkCand.length > 0 ? reisuiWorkCand[0] : bestWorkOverall;
+
+  // 3. 九星気学 (Nine Star Ki):
+  // 婚期: 本命星が「巽宮（南東・福徳期＝結婚・良縁結実の絶頂）」回座年（次点: 兌宮）
+  // 仕事: 本命星が「乾宮（北西・秋の収穫期＝社会的成果・独立・昇進）」回座年（次点: 離宮）
+  const nineStarYearsWithGyu = futureYears.map(yData => {
+    const centerStarNum = ((1 - (yData.periodValue - 2026)) % 9 + 9) % 9 || 9;
+    const gyuData = getYearGyu(honmeiStar, centerStarNum);
+    return { yData, gyuData };
+  });
+
+  const sonCand = nineStarYearsWithGyu.find(item => item.gyuData.gyuName.includes("巽宮"));
+  const daCand = nineStarYearsWithGyu.find(item => item.gyuData.gyuName.includes("兌宮"));
+  const nineStarMarriageItem = sonCand || daCand || nineStarYearsWithGyu[0];
+  const nineStarMarriageYear = nineStarMarriageItem.yData;
+  const nineStarMarriageGyu = nineStarMarriageItem.gyuData;
+
+  const kenCand = nineStarYearsWithGyu.find(item => item.gyuData.gyuName.includes("乾宮"));
+  const riCand = nineStarYearsWithGyu.find(item => item.gyuData.gyuName.includes("離宮"));
+  const nineStarWorkItem = kenCand || riCand || nineStarYearsWithGyu[0];
+  const nineStarWorkYear = nineStarWorkItem.yData;
+  const nineStarWorkGyu = nineStarWorkItem.gyuData;
+
+  // 4. 四柱推命 (Four Pillars):
+  // 流年バイオリズム stageFourPillars による判定
+  // 婚期: stageFourPillars が「充実」「人気」「決定」期の中で結婚スコアが最高の年
+  const fpMarriageCand = futureYears.filter(y => y.stageFourPillars.name === "充実" || y.stageFourPillars.name === "人気" || y.stageFourPillars.name === "決定");
+  let fpMarriageYear = fpMarriageCand[0] || futureYears[0];
+  for (const cand of fpMarriageCand) {
+    if (cand.marriage.value > fpMarriageYear.marriage.value) {
+      fpMarriageYear = cand;
+    }
+  }
+
+  // 仕事: stageFourPillars が「充実」または「経済」でスコアが最大の年
+  const fpWorkCand = futureYears.filter(y => y.stageFourPillars.name === "充実" || y.stageFourPillars.name === "経済");
+  let fpWorkYear = fpWorkCand[0] || futureYears[0];
+  for (const cand of fpWorkCand) {
+    if (cand.stageFourPillars.score > fpWorkYear.stageFourPillars.score) {
+      fpWorkYear = cand;
+    }
   }
 
   const nextMonthNum = currentMonth === 12 ? 1 : currentMonth + 1;
@@ -1159,20 +2134,44 @@ export function calculateFortune(birthdate: string, name: string): FortuneResult
     },
     turningPoints: {
       overall: {
-        marriage: { year: bestMarriageYear.period, description: `${bestMarriageYear.period}（${bestMarriageYear.age}才）は総合的に婚期・パートナー運の最高潮の年です。` },
-        work: { year: bestWorkYear.period, description: `${bestWorkYear.period}（${bestWorkYear.age}才）はキャリアと人生の大きな飛躍の年となります。` }
+        marriage: { 
+          year: bestMarriageOverall.period, 
+          description: `${bestMarriageOverall.period}（${bestMarriageOverall.age}才）は、四柱推命・九星気学・令翠学の3占術すべての吉運が調和する、総合的な婚期・パートナー運の最高潮の年です。` 
+        },
+        work: { 
+          year: bestWorkOverall.period, 
+          description: `${bestWorkOverall.period}（${bestWorkOverall.age}才）は、3占術のバイオリズムが共に上昇気流を描く、キャリアと人生の大きな飛躍の年となります。` 
+        }
       },
       fourPillars: {
-        marriage: { year: bestMarriageYear.period, description: `四柱推命の流年において、良縁と結実が約束される黄金期です。` },
-        work: { year: bestWorkYear.period, description: `社会的地位と名誉を手にする大勝負の年です。` }
+        marriage: { 
+          year: fpMarriageYear.period, 
+          description: `四柱推命の流年バイオリズムにおいて「${fpMarriageYear.stageFourPillars.name}」を迎える${fpMarriageYear.period}（${fpMarriageYear.age}才）は、良縁と家庭の結実が約束される黄金期です。` 
+        },
+        work: { 
+          year: fpWorkYear.period, 
+          description: `四柱推命の巡りにおいて「${fpWorkYear.stageFourPillars.name}」を迎える${fpWorkYear.period}（${fpWorkYear.age}才）は、持ち前の才能が公に認められ、社会的地位と名誉を手にする大勝負の年です。` 
+        }
       },
       nineStar: {
-        marriage: { year: bestMarriageYear.period, description: `九星の年盤において、巽宮（福徳）または乾宮への回座が重なる大吉年です。` },
-        work: { year: bestWorkYear.period, description: `運気の頂点に立ち、周囲からの絶大な支持を得られる時期です。` }
+        marriage: { 
+          year: nineStarMarriageYear.period, 
+          description: `九星の年盤において、本命星（${honmeiStar}）が「${nineStarMarriageGyu.gyuName}」に回座する${nineStarMarriageYear.period}（${nineStarMarriageYear.age}才）は、ご縁と信頼の結実・結婚に12年で最大の好機となる大吉年です。` 
+        },
+        work: { 
+          year: nineStarWorkYear.period, 
+          description: `九星の年盤において「${nineStarWorkGyu.gyuName}」に回座する${nineStarWorkYear.period}（${nineStarWorkYear.age}才）は、強力な天の加護と指導力が宿り、社会的成果と大願成就を果たすキャリアの絶頂期です。` 
+        }
       },
       reisui: {
-        marriage: { year: bestMarriageYear.period, description: `令翠学12周期の「充実・人気」期が重なる奇跡のタイミングです。` },
-        work: { year: bestWorkYear.period, description: `「経済・充実」の収穫期を迎え、人生の集大成を達成します。` }
+        marriage: { 
+          year: reisuiMarriageYear.period, 
+          description: `令翠学12運命周期の「${reisuiMarriageYear.stageReisui.name}」期を迎える${reisuiMarriageYear.period}（${reisuiMarriageYear.age}才）は、人望と人気が最高潮に達し、生涯の絆を結ぶ結婚・パートナーシップの絶好のタイミングです。` 
+        },
+        work: { 
+          year: reisuiWorkYear.period, 
+          description: `令翠学12周期の頂点である「${reisuiWorkYear.stageReisui.name}」期を迎える${reisuiWorkYear.period}（${reisuiWorkYear.age}才）は、長年の努力が大きな実績と評価となって結実し、人生最大の収穫を果たす黄金期です。` 
+        }
       }
     }
   };
@@ -1231,8 +2230,36 @@ function generateScore(seed: number, category: '恋愛' | '仕事' | '家庭' | 
   return { value, detail, caution, recommendation };
 }
 
-function generatePeriodData(seedBase: number, periodLabel: string, periodValue: number, age: number, offset: {reisui: number, four: number, nine: number}, isMonth: boolean = false): PeriodData {
-  const stageReisui = BIORHYTHM_CYCLE[(offset.reisui + periodValue) % 12];
+function generatePeriodData(
+  seedBase: number, 
+  periodLabel: string, 
+  periodValue: number, 
+  age: number, 
+  offset: {reisui: number, four: number, nine: number}, 
+  isMonth: boolean = false,
+  reiBranch?: number
+): PeriodData {
+  let stageReisui: BiorhythmStage;
+  if (typeof reiBranch === 'number') {
+    const rStage = isMonth 
+      ? getReisuiMonthCycle(reiBranch, periodValue)
+      : getReisuiYearCycle(reiBranch, periodValue);
+    stageReisui = {
+      name: rStage.name,
+      score: rStage.score,
+      description: rStage.description,
+      isPeak: rStage.isPeak,
+      isValley: rStage.isValley,
+      season: rStage.season,
+      seasonLabel: rStage.seasonLabel,
+      seasonTheme: rStage.seasonTheme,
+      keywords: rStage.keywords,
+      fuyuShitaku: rStage.fuyuShitaku
+    };
+  } else {
+    stageReisui = BIORHYTHM_CYCLE[(offset.reisui + periodValue) % 12];
+  }
+
   const stageFourPillars = BIORHYTHM_CYCLE[(offset.four + periodValue) % 12];
   const stageNineStar = BIORHYTHM_CYCLE[(offset.nine + periodValue) % 12];
   
@@ -1283,8 +2310,8 @@ export function calculateCompatibility(
   const pillar2 = getPillar(y2, m2, d2);
   const star1 = getHonmeiStar(y1, m1, d1);
   const star2 = getHonmeiStar(y2, m2, d2);
-  const reisuiStar1 = REISUI_STARS[seed1 % 12];
-  const reisuiStar2 = REISUI_STARS[seed2 % 12];
+  const reisuiStar1 = getReisuiStar(y1, m1, d1).star;
+  const reisuiStar2 = getReisuiStar(y2, m2, d2).star;
 
   // 四柱推命相性
   const dayStem1 = pillar1.day.charAt(0);
@@ -1380,7 +2407,7 @@ export function calculateCompatibility(
   const isOpposite = diff === 6;
 
   let reisuiScore = 75;
-  let reisuiStarPair = `支配星: ${reisuiStar1} × ${reisuiStar2}`;
+  let reisuiStarPair = `宿星: ${reisuiStar1} × ${reisuiStar2}`;
   if (isReisuiSame) {
     reisuiScore = 94 + (combinedSeed % 5);
     reisuiStarPair += ` (同気星・バイオリズムの完全同調)`;
@@ -1399,7 +2426,7 @@ export function calculateCompatibility(
     overall: isReisuiSame
       ? `12年のバイオリズムが完全に一致する「同気星」の相性です。好調な時も充電の時も互いの心の動きが手にとるように理解でき、人生の伴侶として最高のパートナーとなります。`
       : isOpposite
-      ? `支配星の円環において正反対に位置する「対照星」です。自分が見落としがちな視点を相手が持っており、互いを認め合えば無敵のチームとなります。`
+      ? `宿星の円環（六令星）において正反対に位置する「対照星」です。自分が見落としがちな視点を相手が持っており、互いを認め合えば無敵のチームとなります。`
       : `周期のリズムが適度にズレているため、一方が充電期の時に、もう一方が上昇期で支えてあげられる理想的なリレー関係を築けます。`,
     romance: isReisuiSame
       ? `タイミングが常に一致し、トントン拍子に関係が深まります。同じ未来を描きやすく結婚生活も安泰です。`
